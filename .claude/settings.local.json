@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(winget install *)",
+      "PowerShell($releases = Invoke-RestMethod \"https://storage.googleapis.com/flutter_infra_release/releases/releases_windows.json\" -ErrorAction Stop; $latest = $releases.releases | Where-Object { $_.channel -eq \"stable\" } | Select-Object -First 1; Write-Output \"Version: $\\($latest.version\\)\"; Write-Output \"URL: $\\($releases.base_url\\)/$\\($latest.archive\\)\")",
+      "PowerShell(Get-Item *)",
+      "Bash(flutter devices *)",
+      "PowerShell(flutter devices *)",
+      "PowerShell(& \"C:\\\\Program Files \\(x86\\)\\\\flutter\\\\bin\\\\flutter.bat\" devices)",
+      "PowerShell($shell = New-Object -ComObject Scripting.FileSystemObject; $shell.GetFile\\(\"C:\\\\Program Files \\(x86\\)\\\\flutter\\\\bin\\\\flutter.bat\"\\).ShortPath)",
+      "Bash(Get-Content \"C:\\\\Users\\\\carlo\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-carlo-OneDrive-Im-genes-Documentos-app-viaticos-viaticos-flutter\\\\c338adfd-788d-48c2-8a1b-cd124dbe1719\\\\tasks\\\\biz6l298d.output\" -Wait)",
+      "Bash(Select-String -Pattern \"Running|error|Error|Built|Launching|flutter|Syncing|Reloaded|killed|exception|FAILED|crash\")",
+      "Bash(Get-Content \"C:\\\\Users\\\\carlo\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-carlo-OneDrive-Im-genes-Documentos-app-viaticos-viaticos-flutter\\\\c338adfd-788d-48c2-8a1b-cd124dbe1719\\\\tasks\\\\bbh051xu9.output\" -Wait)",
+      "PowerShell(& \"C:\\\\Program Files\\\\flutter\\\\bin\\\\dart.bat\" --version 2>&1)",
+      "PowerShell(Test-NetConnection *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell($env:PATH -split \";\" | Where-Object { $_ -ne \"\" } | Select-Object -First 30)",
+      "Bash(flutter analyze *)",
+      "PowerShell($env:PATH = \"$env:PATH;$env:LOCALAPPDATA\\\\flutter\\\\bin;$env:USERPROFILE\\\\flutter\\\\bin\"; cd \"D:\\\\BOOT\\\\user\\\\CORDAZ\\\\Documents\\\\proyectos\\\\KurtApp\\\\AppViaticos\\\\viaticos_flutter\"; where.exe flutter 2>&1)"
+    ]
+  }
+}
