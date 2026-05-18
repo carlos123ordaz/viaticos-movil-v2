@@ -256,6 +256,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       'creationMethod': _fromScan ? 'scan' : 'manual',
       'imageUrl': _imageUrl ?? '',
       'receiptDetail': _receiptType?.name ?? _receiptDetailId ?? '',
+      if (_receiptType != null) 'receiptTypeId': _receiptType!.receiptTypeId,
       'receiptNumber': _receiptNumberCtrl.text.trim(),
       'ruc': _rucCtrl.text.trim(),
       'businessName': _businessNameCtrl.text.trim(),

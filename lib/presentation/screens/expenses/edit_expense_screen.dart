@@ -160,6 +160,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       if (_selectedCategory != null) 'category': _selectedCategory!.name,
       if (_descripCtrl.text.trim().isNotEmpty) 'descrip': _descripCtrl.text.trim(),
       if (_receiptType != null) 'receiptDetail': _receiptType!.name,
+      if (_receiptType != null) 'receiptTypeId': _receiptType!.receiptTypeId,
       if (_receiptNumberCtrl.text.trim().isNotEmpty) 'receiptNumber': _receiptNumberCtrl.text.trim(),
       if (_documentType != null) 'documentType': _documentType,
       if (_docReferenceCtrl.text.trim().isNotEmpty) 'documentReference': _docReferenceCtrl.text.trim(),
