@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/theme/app_theme.dart';
 
 class AppLoader extends StatelessWidget {
   final String? message;
@@ -88,9 +89,9 @@ class _ShimmerCardState extends State<ShimmerCard>
                 (_animation.value + 0.3).clamp(0.0, 1.0),
               ],
               colors: [
-                const Color(0xFFE2E8F0),
-                const Color(0xFFF1F5F9),
-                const Color(0xFFE2E8F0),
+                context.appColors.surfaceTinted,
+                context.appColors.line,
+                context.appColors.surfaceTinted,
               ],
             ),
           ),

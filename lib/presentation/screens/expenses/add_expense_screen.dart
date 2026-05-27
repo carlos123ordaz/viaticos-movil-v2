@@ -3,23 +3,35 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/validators.dart';
 import '../../../data/models/cost_center_model.dart';
 import '../../../data/models/expense_model.dart';
+import '../../../data/services/cost_center_service.dart';
 import '../../../data/services/expense_service.dart';
+import '../../../data/services/storage_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/expense_provider.dart';
 import 'cost_center_allocation_screen.dart';
 import 'task_selection_screen.dart';
 
 const _kStepTitles = [
-  'Tipo y Tarea',
-  'Proveedor',
-  'Montos e Items',
-  'Categoría y Comprobante',
-  'Descripción y Adjuntos',
+  '¿Qué tipo de gasto es?',
+  'Datos del proveedor',
+  'Montos del gasto',
+  'Tipo de comprobante',
+  'Detalle y respaldo',
 ];
 
+const _kStepSubtitles = [
+  'Elige el tipo y la tarea Bitrix asociada.',
+  'Busca por RUC y completamos los datos.',
+  'Ingresa el total. El IGV se calcula automáticamente.',
+  'Define qué documento sustenta el gasto.',
+  'Agrega descripción, comprobante y centros de costo.',
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
 class AddExpenseScreen extends StatefulWidget {
   final Map<String, dynamic>? prefillData;
   const AddExpenseScreen({super.key, this.prefillData});
@@ -33,50 +45,53 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final _pageCtrl = PageController();
   int _currentStep = 0;
 
-  // Tipo
   String _type = 'viatico';
 
-  // Proveedor
   final _rucCtrl = TextEditingController();
   final _businessNameCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
 
-  // Items
   final List<_ItemData> _items = [];
 
-  // Totales
   final _totalCtrl = TextEditingController();
   final _igvCtrl = TextEditingController();
   final _discountCtrl = TextEditingController(text: '0.00');
   final _detractionCtrl = TextEditingController(text: '0.00');
 
-  // Detalles
   ExpenseCategoryModel? _selectedCategory;
   String _currency = 'PEN';
   DateTime _date = DateTime.now();
 
-  // Comprobante
   ReceiptTypeModel? _receiptType;
   final _receiptNumberCtrl = TextEditingController();
   String? _documentType;
   final _docReferenceCtrl = TextEditingController();
 
-  // Descripción y adjuntos
   final _descripCtrl = TextEditingController();
   List<CostCenterAllocation> _allocations = [];
   String? _imagePath;
   String? _imageUrl;
   String? _receiptDetailId;
+  int? _prefillReceiptTypeId;
+  String? _prefillCategoryName;
   bool _fromScan = false;
   bool _hasReceipt = true;
 
-  // Datos del servidor
   List<ExpenseCategoryModel> _categories = [];
   List<ReceiptTypeModel> _receiptTypes = [];
   bool _loadingData = true;
   bool _saving = false;
 
   final _picker = ImagePicker();
+
+  String get _currencySymbol =>
+      _currency == 'USD' ? '\$' : _currency == 'EUR' ? '€' : 'S/';
+
+  double get _subtotalValue {
+    final total = double.tryParse(_totalCtrl.text) ?? 0;
+    final igv = double.tryParse(_igvCtrl.text) ?? 0;
+    return (total - igv).clamp(0, double.infinity);
+  }
 
   @override
   void initState() {
@@ -97,9 +112,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     if (data['type'] != null) _type = data['type'] as String;
     if (data['currencyCode'] != null) _currency = data['currencyCode'] as String;
     if (data['receiptNumber'] != null) _receiptNumberCtrl.text = data['receiptNumber'].toString();
+    if (data['expenseDate'] != null) {
+      final parsed = DateTime.tryParse(data['expenseDate'].toString());
+      if (parsed != null) _date = parsed;
+    }
     if (data['imageUrl'] != null) _imageUrl = data['imageUrl'] as String;
     if (data['hasReceipt'] is bool) _hasReceipt = data['hasReceipt'] as bool;
     if (data['receiptDetail'] != null) _receiptDetailId = data['receiptDetail'].toString();
+    if (data['receiptTypeId'] != null) _prefillReceiptTypeId = (data['receiptTypeId'] as num).toInt();
+    if (data['category'] != null) _prefillCategoryName = data['category'].toString();
     if (data['scannedFilePath'] != null) {
       _imagePath = data['scannedFilePath'] as String;
       _fromScan = true;
@@ -112,16 +133,56 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   Future<void> _loadData() async {
     setState(() => _loadingData = true);
-    final service = context.read<ExpenseService>();
+    final expenseService = context.read<ExpenseService>();
+    final ccService = context.read<CostCenterService>();
     try {
       final results = await Future.wait([
-        service.getExpenseCategories(_type),
-        service.getReceiptTypes(),
+        expenseService.getExpenseCategories(_type),
+        expenseService.getReceiptTypes(),
+        ccService.getCostCenters(),
       ]);
+      final costCenters = results[2] as List<CostCenterModel>;
       setState(() {
         _categories = results[0] as List<ExpenseCategoryModel>;
         _receiptTypes = results[1] as List<ReceiptTypeModel>;
+        if (_prefillCategoryName != null && _selectedCategory == null) {
+          _selectedCategory = _categories
+              .where((c) => c.name.toLowerCase() == _prefillCategoryName!.toLowerCase())
+              .firstOrNull;
+        }
+        if (_prefillReceiptTypeId != null) {
+          _receiptType = _receiptTypes
+              .where((r) => r.receiptTypeId == _prefillReceiptTypeId)
+              .firstOrNull;
+        }
+        _receiptType ??= _receiptTypes.where((r) => r.receiptTypeId == 2).firstOrNull;
       });
+      // Pre-load saved allocations resolving names from the loaded cost center list
+      if (_allocations.isEmpty) {
+        final storage = context.read<StorageService>();
+        final saved = storage.lastAllocations;
+        if (saved != null && saved.isNotEmpty) {
+          setState(() {
+            _allocations = saved.map((s) {
+              final ccId = (s['costCenterId'] as num?)?.toInt();
+              final ccName = s['costCenterName'] as String? ??
+                  costCenters
+                      .where((c) => c.costCenterId == ccId)
+                      .firstOrNull
+                      ?.displayName;
+              return CostCenterAllocation(
+                costCenterId: ccId,
+                costCenterName: ccName,
+                subCostCenterId: (s['subCostCenterId'] as num?)?.toInt(),
+                subCostCenterName: s['subCostCenterName'] as String?,
+                subSubCostCenterId: (s['subSubCostCenterId'] as num?)?.toInt(),
+                subSubCostCenterName: s['subSubCostCenterName'] as String?,
+                percentage: (s['percentage'] as num).toDouble(),
+              );
+            }).toList();
+          });
+        }
+      }
     } catch (_) {
     } finally {
       setState(() => _loadingData = false);
@@ -140,7 +201,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   void _recalcIgv() {
     final total = double.tryParse(_totalCtrl.text) ?? 0;
-    if (total > 0) _igvCtrl.text = (total - total / 1.18).toStringAsFixed(2);
+    if (total > 0) {
+      _igvCtrl.text = (total - total / 1.18).toStringAsFixed(2);
+      setState(() {});
+    }
   }
 
   void _addItem() => setState(() => _items.add(_ItemData()));
@@ -156,8 +220,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
-      context: context, initialDate: _date,
-      firstDate: DateTime(2020), lastDate: DateTime.now(),
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
     );
     if (picked != null) setState(() => _date = picked);
   }
@@ -169,7 +235,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   Future<void> _openAllocationScreen() async {
     final result = await Navigator.of(context).push<List<CostCenterAllocation>>(
-      MaterialPageRoute(builder: (_) => CostCenterAllocationScreen(initialAllocations: _allocations)),
+      MaterialPageRoute(
+          builder: (_) => CostCenterAllocationScreen(initialAllocations: _allocations)),
     );
     if (result != null) setState(() => _allocations = result);
   }
@@ -201,6 +268,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           return false;
         }
         return true;
+      case 4:
+        if (_descripCtrl.text.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('La descripción es obligatoria')),
+          );
+          return false;
+        }
+        return true;
       default:
         return true;
     }
@@ -224,7 +299,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_validateStep(2) || !_validateStep(3)) return;
+    if (!_validateStep(2) || !_validateStep(3) || !_validateStep(4)) return;
     final total = double.tryParse(_totalCtrl.text.replaceAll(',', '.'));
     if (total == null || total <= 0) return;
 
@@ -237,7 +312,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     final totalPct = _allocations.fold(0.0, (s, a) => s + a.percentage);
     if ((totalPct - 100).abs() > 0.01) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Los porcentajes deben sumar 100% (actual: ${totalPct.toStringAsFixed(0)}%)')),
+        SnackBar(
+            content: Text(
+                'Los porcentajes deben sumar 100% (actual: ${totalPct.toStringAsFixed(0)}%)')),
       );
       return;
     }
@@ -267,13 +344,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       if (_documentType != null) 'documentType': _documentType,
       if (taskId != null) 'taskId': taskId,
       if (_items.isNotEmpty)
-        'items': _items.map((i) => {
-              'descrip': i.descripCtrl.text.trim(),
-              'unitOfMeasure': i.unitCtrl.text.trim(),
-              'quantity': double.tryParse(i.quantityCtrl.text) ?? 1,
-              'unitPrice': double.tryParse(i.priceCtrl.text) ?? 0,
-              'subtotal': i.subtotal,
-            }).toList(),
+        'items': _items
+            .map((i) => {
+                  'descrip': i.descripCtrl.text.trim(),
+                  'unitOfMeasure': i.unitCtrl.text.trim(),
+                  'quantity': double.tryParse(i.quantityCtrl.text) ?? 1,
+                  'unitPrice': double.tryParse(i.priceCtrl.text) ?? 0,
+                  'subtotal': i.subtotal,
+                })
+            .toList(),
       'costCenterAllocations': _allocations.map((a) => a.toJson()).toList(),
     };
 
@@ -282,18 +361,16 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     if (!mounted) return;
     setState(() => _saving = false);
     if (expense != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gasto registrado correctamente')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Gasto registrado correctamente')));
       context.pop();
     } else {
       final errorMsg = provider.createError ?? 'Error al guardar el gasto';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(errorMsg),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          duration: const Duration(seconds: 6),
-        ),
+            content: Text(errorMsg),
+            backgroundColor: AppTheme.error,
+            duration: const Duration(seconds: 6)),
       );
     }
   }
@@ -315,146 +392,226 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     super.dispose();
   }
 
+  // ── build ───────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final c = context.appColors;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_kStepTitles[_currentStep]),
-      ),
-      body: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            // Indicador de pasos
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Row(
-                children: List.generate(5, (i) {
-                  final done = i < _currentStep;
-                  final active = i == _currentStep;
-                  return Expanded(
-                    child: Row(
-                      children: [
-                        Expanded(
+      backgroundColor: c.background,
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Top bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: _currentStep > 0 ? _goPrev : () => context.pop(),
+                      icon: Icon(Icons.arrow_back_rounded, color: c.ink),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => context.pop(),
+                      child: Text('Cancelar',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: c.muted)),
+                    ),
+                  ],
+                ),
+              ),
+              // Step header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 2, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PASO ${_currentStep + 1} DE 5',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.primary,
+                          letterSpacing: 0.8),
+                    ),
+                    const SizedBox(height: 4),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Align(
+                        key: ValueKey(_currentStep),
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _kStepTitles[_currentStep],
+                          style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: c.ink,
+                              letterSpacing: -0.6,
+                              height: 1.1),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _kStepSubtitles[_currentStep],
+                      style: TextStyle(fontSize: 13, color: c.muted),
+                    ),
+                    const SizedBox(height: 12),
+                    // Segmented progress
+                    Row(
+                      children: List.generate(5, (i) {
+                        return Expanded(
                           child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
+                            duration: const Duration(milliseconds: 300),
                             height: 4,
+                            margin: EdgeInsets.only(right: i < 4 ? 4 : 0),
                             decoration: BoxDecoration(
-                              color: done || active ? colors.primary : colors.surfaceVariant,
+                              color: i <= _currentStep ? AppTheme.primary : c.line,
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
-                        ),
-                        if (i < 4) const SizedBox(width: 4),
-                      ],
+                        );
+                      }),
                     ),
-                  );
-                }),
+                  ],
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Paso ${_currentStep + 1} de 5',
-                      style: TextStyle(fontSize: 12, color: colors.outline, fontWeight: FontWeight.w500)),
-                  Text(_kStepTitles[_currentStep],
-                      style: TextStyle(fontSize: 12, color: colors.primary, fontWeight: FontWeight.w600)),
-                ],
+              // Pages
+              Expanded(
+                child: PageView(
+                  controller: _pageCtrl,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _StepView(child: _buildStep0()),
+                    _StepView(child: _buildStep1()),
+                    _StepView(child: _buildStep2()),
+                    _StepView(child: _buildStep3()),
+                    _StepView(child: _buildStep4()),
+                  ],
+                ),
               ),
-            ),
-            // Contenido de pasos
-            Expanded(
-              child: PageView(
-                controller: _pageCtrl,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _StepView(child: _buildStep0(colors)),
-                  _StepView(child: _buildStep1(colors)),
-                  _StepView(child: _buildStep2(colors)),
-                  _StepView(child: _buildStep3(colors)),
-                  _StepView(child: _buildStep4(colors)),
-                ],
-              ),
-            ),
-            // Navegación inferior
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              decoration: BoxDecoration(
-                color: colors.surface,
-                border: Border(top: BorderSide(color: colors.outlineVariant.withOpacity(0.5))),
-              ),
-              child: Row(
-                children: [
-                  if (_currentStep > 0)
-                    Expanded(
-                      flex: 2,
-                      child: OutlinedButton.icon(
-                        onPressed: _goPrev,
-                        icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                        label: const Text('Anterior'),
-                        style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
-                      ),
-                    ),
-                  if (_currentStep > 0) const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: _currentStep < 4
-                        ? FilledButton.icon(
-                            onPressed: _goNext,
-                            icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                            label: const Text('Siguiente', style: TextStyle(fontWeight: FontWeight.w700)),
-                            style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
-                          )
-                        : FilledButton.icon(
-                            onPressed: _saving ? null : _submit,
-                            icon: _saving
-                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                : const Icon(Icons.check_rounded, size: 18),
-                            label: Text(_saving ? 'Guardando...' : 'Registrar',
-                                style: const TextStyle(fontWeight: FontWeight.w700)),
-                            style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+              // Bottom nav
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                    20, 12, 20, 12 + MediaQuery.of(context).padding.bottom),
+                decoration: BoxDecoration(
+                    color: c.surface, boxShadow: AppTheme.cardShadow),
+                child: Row(
+                  children: [
+                    if (_currentStep > 0) ...[
+                      SizedBox(
+                        width: 50,
+                        height: 50,
+                        child: OutlinedButton(
+                          onPressed: _goPrev,
+                          style: OutlinedButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            side: BorderSide(color: c.line, width: 1.5),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
                           ),
-                  ),
-                ],
+                          child: Icon(Icons.arrow_back_rounded,
+                              size: 20, color: c.ink),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      child: _currentStep < 4
+                          ? FilledButton(
+                              onPressed: _goNext,
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size(double.infinity, 50),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16)),
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('Siguiente',
+                                      style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700)),
+                                  SizedBox(width: 6),
+                                  Icon(Icons.arrow_forward_rounded, size: 18),
+                                ],
+                              ),
+                            )
+                          : FilledButton(
+                              onPressed: _saving ? null : _submit,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppTheme.secondary,
+                                minimumSize: const Size(double.infinity, 50),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16)),
+                              ),
+                              child: _saving
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          color: Colors.white, strokeWidth: 2))
+                                  : const Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.check_rounded, size: 18),
+                                        SizedBox(width: 6),
+                                        Text('Crear gasto',
+                                            style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w700)),
+                                      ],
+                                    ),
+                            ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   // ── Paso 0: Tipo y Tarea ────────────────────────────────────────────────────
-  Widget _buildStep0(ColorScheme colors) {
+
+  Widget _buildStep0() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Tipo de gasto', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: colors.onSurface)),
-        const SizedBox(height: 12),
+        const _FieldLabel('Tipo de gasto'),
+        const SizedBox(height: 10),
         _TypeToggle(type: _type, onChanged: _setType),
         const SizedBox(height: 24),
-        Text('Tarea Bitrix', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: colors.onSurface)),
-        const SizedBox(height: 12),
+        const _FieldLabel('Tarea Bitrix'),
+        const SizedBox(height: 10),
         _TaskBanner(),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF7ED),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFFED7AA)),
+            color: AppTheme.warnTint,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.warn.withOpacity(0.4)),
           ),
           child: Row(
             children: [
-              const Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFFD97706)),
+              Icon(Icons.warning_amber_rounded, size: 16, color: AppTheme.warn),
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
                   'Seleccionar una tarea Bitrix es obligatorio para registrar un gasto.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF7A4A10),
+                      fontWeight: FontWeight.w500),
                 ),
               ),
             ],
@@ -465,179 +622,351 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   // ── Paso 1: Proveedor ───────────────────────────────────────────────────────
-  Widget _buildStep1(ColorScheme colors) {
+
+  Widget _buildStep1() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Datos del proveedor',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        Text('Todos los campos son opcionales', style: TextStyle(fontSize: 12, color: colors.outline)),
-        const SizedBox(height: 16),
+        const _FieldLabel('RUC'),
+        const SizedBox(height: 8),
         TextFormField(
           controller: _rucCtrl,
-          decoration: const InputDecoration(labelText: 'RUC', prefixIcon: Icon(Icons.numbers_rounded)),
+          decoration: const InputDecoration(
+              hintText: 'Ej: 20510016153',
+              prefixIcon: Icon(Icons.numbers_rounded)),
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
+        const _FieldLabel('Razón Social'),
+        const SizedBox(height: 8),
         TextFormField(
           controller: _businessNameCtrl,
-          decoration: const InputDecoration(labelText: 'Razón Social', prefixIcon: Icon(Icons.business_outlined)),
+          decoration: const InputDecoration(
+              hintText: 'Nombre de la empresa',
+              prefixIcon: Icon(Icons.business_outlined)),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
+        const _FieldLabel('Dirección'),
+        const SizedBox(height: 8),
         TextFormField(
           controller: _addressCtrl,
-          decoration: const InputDecoration(labelText: 'Dirección', prefixIcon: Icon(Icons.location_on_outlined)),
+          decoration: const InputDecoration(
+              hintText: 'Dirección fiscal',
+              prefixIcon: Icon(Icons.location_on_outlined)),
           maxLines: 2,
         ),
       ],
     );
   }
 
-  // ── Paso 2: Montos e Items ──────────────────────────────────────────────────
-  Widget _buildStep2(ColorScheme colors) {
+  // ── Paso 2: Montos ──────────────────────────────────────────────────────────
+
+  Widget _buildStep2() {
+    final c = context.appColors;
     return Column(
-      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Total
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: _totalCtrl,
-                validator: Validators.amount,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                onChanged: (_) => setState(() {}),
-                onEditingComplete: _recalcIgv,
-                decoration: InputDecoration(
-                  labelText: 'Total *',
-                  prefixText: _currency == 'USD' ? '\$ ' : _currency == 'EUR' ? '€ ' : 'S/ ',
+        // Currency pill selector
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+              color: c.surfaceTinted,
+              borderRadius: BorderRadius.circular(999)),
+          child: Row(
+            children: [
+              for (final cur in [
+                ('PEN', 'Soles · S/'),
+                ('USD', 'Dólares · \$'),
+                ('EUR', 'Euros · €')
+              ])
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _currency = cur.$1),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      decoration: BoxDecoration(
+                        color: _currency == cur.$1 ? c.surface : Colors.transparent,
+                        borderRadius: BorderRadius.circular(999),
+                        boxShadow: _currency == cur.$1
+                            ? [const BoxShadow(
+                                color: Color(0x180E1330),
+                                blurRadius: 6,
+                                offset: Offset(0, 2))]
+                            : null,
+                      ),
+                      child: Text(cur.$2,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _currency == cur.$1 ? c.ink : c.muted)),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            SizedBox(
-              width: 72,
-              child: _CurrencyPicker(value: _currency, onChanged: (v) => setState(() => _currency = v!)),
-            ),
-          ],
+            ],
+          ),
         ),
-        const SizedBox(height: 10),
-        Row(
+        const SizedBox(height: 14),
+        // Dark total card
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppTheme.ink,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(color: Color(0x3A0E1330), blurRadius: 24, offset: Offset(0, 8))
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('TOTAL',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white54,
+                      letterSpacing: 1.2)),
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(_currencySymbol,
+                      style: const TextStyle(
+                          fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white60)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _totalCtrl,
+                      validator: Validators.amount,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      style: const TextStyle(
+                          fontSize: 44,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: -1),
+                      onChanged: (_) => setState(() {}),
+                      onEditingComplete: _recalcIgv,
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        filled: false,
+                        hintText: '0.00',
+                        hintStyle: TextStyle(
+                            color: Colors.white24,
+                            fontSize: 44,
+                            fontWeight: FontWeight.w800),
+                        contentPadding: EdgeInsets.zero,
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final amt in [50, 100, 500])
+                    GestureDetector(
+                      onTap: () {
+                        final current = double.tryParse(_totalCtrl.text) ?? 0;
+                        _totalCtrl.text = (current + amt).toStringAsFixed(2);
+                        _recalcIgv();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                        decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(999)),
+                        child: Text('+$amt',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white)),
+                      ),
+                    ),
+                  GestureDetector(
+                    onTap: _recalcIgv,
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      decoration: BoxDecoration(
+                          color: AppTheme.yellow,
+                          borderRadius: BorderRadius.circular(999)),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.calculate_rounded, size: 12, color: AppTheme.ink),
+                          SizedBox(width: 4),
+                          Text('Calc IGV',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.ink)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        // 2×2 breakdown grid
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 1.8,
           children: [
-            Expanded(
-              child: TextFormField(
-                controller: _igvCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'IGV', isDense: true),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextFormField(
-                controller: _discountCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Descuento', isDense: true),
-              ),
-            ),
+            _MoneyTile(
+                label: 'IGV (18%)', controller: _igvCtrl, accent: AppTheme.primary),
+            _MoneyTile(
+                label: 'Subtotal',
+                displayValue: _subtotalValue.toStringAsFixed(2)),
+            _MoneyTile(
+                label: 'Descuento', controller: _discountCtrl, optional: true),
+            _MoneyTile(
+                label: 'Detracción',
+                controller: _detractionCtrl,
+                optional: true),
           ],
-        ),
-        const SizedBox(height: 10),
-        TextFormField(
-          controller: _detractionCtrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'Detracción', isDense: true),
         ),
         const SizedBox(height: 20),
+        // Items
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Items del comprobante',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+            const _FieldLabel('Items del comprobante'),
             TextButton.icon(
               onPressed: _addItem,
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('Agregar'),
-              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+              icon: const Icon(Icons.add_rounded, size: 16),
+              label: const Text('Agregar',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  foregroundColor: AppTheme.primary),
             ),
           ],
         ),
-        const SizedBox(height: 8),
         if (_items.isEmpty)
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 20),
+            padding: const EdgeInsets.symmetric(vertical: 18),
             alignment: Alignment.center,
-            child: Text('Sin items — opcional', style: TextStyle(color: colors.outline)),
+            child: Text('Sin items — opcional',
+                style: TextStyle(fontSize: 13, color: c.muted)),
           )
         else
           ...List.generate(
             _items.length,
-            (i) => _ItemTile(item: _items[i], index: i, onRemove: () => _removeItem(i), onChanged: _updateTotalFromItems),
+            (i) => _ItemTile(
+                item: _items[i],
+                index: i,
+                onRemove: () => _removeItem(i),
+                onChanged: _updateTotalFromItems),
           ),
       ],
     );
   }
 
-  // ── Paso 3: Categoría y Comprobante ────────────────────────────────────────
-  Widget _buildStep3(ColorScheme colors) {
+  // ── Paso 3: Comprobante y Categoría ────────────────────────────────────────
+
+  Widget _buildStep3() {
+    final c = context.appColors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Categoría', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 12),
+        const _FieldLabel('Tipo de sustento'),
+        const SizedBox(height: 8),
+        _loadingData
+            ? const Center(child: CircularProgressIndicator())
+            : DropdownButtonFormField<ReceiptTypeModel>(
+                value: _receiptType,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.article_outlined), isDense: true),
+                items: _receiptTypes
+                    .map((r) => DropdownMenuItem(
+                        value: r,
+                        child: Text(r.name, overflow: TextOverflow.ellipsis)))
+                    .toList(),
+                onChanged: (v) => setState(() => _receiptType = v),
+              ),
+        const SizedBox(height: 18),
+        const _FieldLabel('Número de comprobante'),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _receiptNumberCtrl,
+          decoration: const InputDecoration(
+              hintText: 'Ej: F001-00284192',
+              prefixIcon: Icon(Icons.tag_rounded),
+              isDense: true),
+        ),
+        const SizedBox(height: 18),
+        const _FieldLabel('Categoría *'),
+        const SizedBox(height: 8),
         _loadingData
             ? const Center(child: CircularProgressIndicator())
             : DropdownButtonFormField<ExpenseCategoryModel>(
                 value: _selectedCategory,
                 isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Categoría *', prefixIcon: Icon(Icons.label_outline)),
-                items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c.name, overflow: TextOverflow.ellipsis))).toList(),
+                decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.label_outline), isDense: true),
+                items: _categories
+                    .map((c) => DropdownMenuItem(
+                        value: c,
+                        child: Text(c.name, overflow: TextOverflow.ellipsis)))
+                    .toList(),
                 onChanged: (v) => setState(() => _selectedCategory = v),
                 validator: (v) => v == null ? 'Selecciona una categoría' : null,
               ),
-        const SizedBox(height: 12),
-        InkWell(
+        const SizedBox(height: 18),
+        const _FieldLabel('Fecha de emisión'),
+        const SizedBox(height: 8),
+        GestureDetector(
           onTap: _pickDate,
-          borderRadius: BorderRadius.circular(12),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            decoration: BoxDecoration(border: Border.all(color: colors.outline), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: c.surface,
+              border: Border.all(color: c.line, width: 1.5),
+              borderRadius: BorderRadius.circular(14),
+            ),
             child: Row(
               children: [
-                Icon(Icons.calendar_today_rounded, color: colors.onSurface.withOpacity(0.6), size: 20),
+                Icon(Icons.calendar_today_rounded,
+                    color: c.muted, size: 20),
                 const SizedBox(width: 12),
                 Text(
                   '${_date.day.toString().padLeft(2, '0')}/${_date.month.toString().padLeft(2, '0')}/${_date.year}',
-                  style: Theme.of(context).textTheme.bodyLarge,
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: c.ink),
                 ),
                 const Spacer(),
-                Icon(Icons.arrow_drop_down_rounded, color: colors.onSurface.withOpacity(0.5)),
+                Icon(Icons.arrow_drop_down_rounded, color: c.muted),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 20),
-        Text('Comprobante', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<ReceiptTypeModel>(
-          value: _receiptType,
-          isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Tipo de sustento', prefixIcon: Icon(Icons.article_outlined)),
-          items: _receiptTypes.map((r) => DropdownMenuItem(value: r, child: Text(r.name, overflow: TextOverflow.ellipsis))).toList(),
-          onChanged: (v) => setState(() => _receiptType = v),
-        ),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: _receiptNumberCtrl,
-          decoration: const InputDecoration(labelText: 'Número de comprobante', prefixIcon: Icon(Icons.tag_rounded)),
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 18),
+        const _FieldLabel('Tipo de documento'),
+        const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           value: _documentType,
-          decoration: const InputDecoration(labelText: 'Tipo de documento', prefixIcon: Icon(Icons.description_outlined)),
+          decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.description_outlined), isDense: true),
           items: const [
             DropdownMenuItem(value: 'OC', child: Text('OC - Orden de Compra')),
             DropdownMenuItem(value: 'OS', child: Text('OS - Orden de Servicio')),
@@ -645,68 +974,57 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           ],
           onChanged: (v) => setState(() => _documentType = v),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 18),
+        const _FieldLabel('Referencia del documento'),
+        const SizedBox(height: 8),
         TextFormField(
           controller: _docReferenceCtrl,
-          decoration: const InputDecoration(labelText: 'Referencia del documento', prefixIcon: Icon(Icons.link_rounded)),
+          decoration: const InputDecoration(
+              hintText: 'Opcional',
+              prefixIcon: Icon(Icons.link_rounded),
+              isDense: true),
         ),
       ],
     );
   }
 
-  // ── Paso 4: Descripción y Adjuntos ──────────────────────────────────────────
-  Widget _buildStep4(ColorScheme colors) {
+  // ── Paso 4: Descripción y adjuntos ──────────────────────────────────────────
+
+  Widget _buildStep4() {
+    final c = context.appColors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Descripción', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 12),
+        const _FieldLabel('Descripción'),
+        const SizedBox(height: 8),
         TextFormField(
           controller: _descripCtrl,
-          maxLines: 3,
-          decoration: const InputDecoration(hintText: 'Descripción general del gasto...', border: OutlineInputBorder()),
+          maxLines: 4,
+          decoration: const InputDecoration(
+            hintText: 'Descripción general del gasto...',
+          ),
+          validator: (v) =>
+              (v == null || v.trim().isEmpty) ? 'La descripción es obligatoria' : null,
         ),
         const SizedBox(height: 20),
-        Text('Centros de costo', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 12),
-        if (_allocations.isNotEmpty) ...[
-          ..._allocations.map((a) => ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  radius: 16, backgroundColor: colors.primaryContainer,
-                  child: Text('${a.percentage.toInt()}%', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: colors.primary)),
-                ),
-                title: Text(a.costCenterName ?? '—', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                subtitle: a.subCostCenterName != null ? Text(a.subCostCenterName!, style: const TextStyle(fontSize: 12)) : null,
-              )),
-          const SizedBox(height: 8),
-        ],
-        OutlinedButton.icon(
-          onPressed: _openAllocationScreen,
-          icon: const Icon(Icons.edit_rounded, size: 18),
-          label: Text(_allocations.isEmpty ? 'Asignar centros de costo' : 'Editar asignación'),
-          style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 44)),
-        ),
-        if (_fromScan) ...[
-          const SizedBox(height: 20),
-          Text('Imagen del comprobante', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
+        const _FieldLabel('Comprobante adjunto'),
+        const SizedBox(height: 10),
+        if (_imagePath != null || _imageUrl != null) ...[
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: colors.secondaryContainer.withOpacity(0.4),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colors.secondary.withOpacity(0.5)),
+              color: AppTheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                  color: AppTheme.secondary.withOpacity(0.4)),
             ),
             child: Row(
               children: [
                 Icon(
-                  _imagePath!.toLowerCase().endsWith('.pdf')
+                  (_imagePath ?? '').toLowerCase().endsWith('.pdf')
                       ? Icons.picture_as_pdf_rounded
                       : Icons.check_circle_rounded,
-                  color: colors.secondary,
+                  color: AppTheme.secondary,
                   size: 22,
                 ),
                 const SizedBox(width: 12),
@@ -714,60 +1032,182 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Comprobante adjuntado',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.secondary),
-                      ),
-                      Text(
-                        _imagePath!.split('/').last,
-                        style: TextStyle(fontSize: 12, color: colors.secondary.withOpacity(0.7)),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      const Text('Comprobante adjuntado',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.secondary)),
+                      if (_imagePath != null)
+                        Text(
+                          _imagePath!.split('/').last,
+                          style: TextStyle(fontSize: 12, color: c.muted),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                     ],
                   ),
+                ),
+                IconButton(
+                  onPressed: () => setState(() {
+                    _imagePath = null;
+                    if (!_fromScan) _imageUrl = null;
+                  }),
+                  icon: Icon(Icons.close_rounded,
+                      size: 18, color: c.muted),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 10),
         ],
-      ],
-    );
-  }
-
-  void _showImageOptions() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        Row(
           children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 20),
-            Text('Adjuntar comprobante', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 20),
-            ListTile(
-              leading: const Icon(Icons.camera_alt_rounded),
-              title: const Text('Tomar foto'),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              onTap: () { Navigator.pop(ctx); _pickImage(ImageSource.camera); },
+            Expanded(
+              child: _AttachButton(
+                icon: Icons.camera_alt_rounded,
+                label: 'Cámara',
+                onTap: () => _pickImage(ImageSource.camera),
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_rounded),
-              title: const Text('Elegir de galería'),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              onTap: () { Navigator.pop(ctx); _pickImage(ImageSource.gallery); },
+            const SizedBox(width: 10),
+            Expanded(
+              child: _AttachButton(
+                icon: Icons.photo_library_rounded,
+                label: 'Galería',
+                onTap: () => _pickImage(ImageSource.gallery),
+              ),
             ),
-            const SizedBox(height: 8),
           ],
         ),
-      ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            const _FieldLabel('Centros de costo'),
+            const Spacer(),
+            if (_allocations.isNotEmpty)
+              TextButton.icon(
+                onPressed: _openAllocationScreen,
+                icon: const Icon(Icons.edit_rounded, size: 14),
+                label: const Text('Editar',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (_allocations.isEmpty)
+          GestureDetector(
+            onTap: _openAllocationScreen,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: c.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: c.line, width: 1.5),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.account_tree_rounded,
+                        color: AppTheme.primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Asignar centros de costo',
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: c.ink)),
+                        Text('Requerido para registrar el gasto',
+                            style: TextStyle(fontSize: 11, color: c.muted)),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.arrow_forward_ios_rounded,
+                      size: 14, color: c.muted2),
+                ],
+              ),
+            ),
+          )
+        else
+          GestureDetector(
+            onTap: _openAllocationScreen,
+            child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: c.surface,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: AppTheme.cardShadow,
+            ),
+            child: Column(
+              children: _allocations.asMap().entries.map((entry) {
+                const barColors = [
+                  AppTheme.primary, AppTheme.mint, AppTheme.coral,
+                  AppTheme.violet, AppTheme.sky,
+                ];
+                final color = barColors[entry.key % barColors.length];
+                final alloc = entry.value;
+                return Padding(
+                  padding: EdgeInsets.only(
+                      bottom: entry.key < _allocations.length - 1 ? 14 : 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(alloc.costCenterName ?? '—',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: c.ink)),
+                          ),
+                          Text('${alloc.percentage.toStringAsFixed(0)}%',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: color)),
+                        ],
+                      ),
+                      if (alloc.subCostCenterName != null) ...[
+                        const SizedBox(height: 2),
+                        Text(alloc.subCostCenterName!,
+                            style: TextStyle(
+                                fontSize: 11, color: c.muted)),
+                      ],
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: alloc.percentage / 100,
+                          minHeight: 5,
+                          backgroundColor: c.surfaceTinted,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          ),
+      ],
     );
   }
 }
 
-// ─── Widgets de paso ──────────────────────────────────────────────────────────
+// ─── Shared widgets ───────────────────────────────────────────────────────────
 
 class _StepView extends StatelessWidget {
   final Widget child;
@@ -776,13 +1216,23 @@ class _StepView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [child],
     );
   }
 }
 
-// ─── Widgets auxiliares (mismo que antes) ─────────────────────────────────────
+class _FieldLabel extends StatelessWidget {
+  final String text;
+  const _FieldLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(text,
+        style: TextStyle(
+            fontSize: 13, fontWeight: FontWeight.w700, color: context.appColors.ink2));
+  }
+}
 
 class _TypeToggle extends StatelessWidget {
   final String type;
@@ -791,41 +1241,44 @@ class _TypeToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Container(
-      decoration: BoxDecoration(color: colors.surfaceVariant.withOpacity(0.5), borderRadius: BorderRadius.circular(14)),
       padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+          color: context.appColors.surfaceTinted,
+          borderRadius: BorderRadius.circular(14)),
       child: Row(
         children: [
-          Expanded(child: _Tab('viatico', 'Viático', type, onChanged)),
-          Expanded(child: _Tab('compra', 'Compra', type, onChanged)),
+          Expanded(child: _TypeTab('viatico', 'Viático', type, onChanged)),
+          Expanded(child: _TypeTab('compra', 'Compra', type, onChanged)),
         ],
       ),
     );
   }
 }
 
-class _Tab extends StatelessWidget {
+class _TypeTab extends StatelessWidget {
   final String value, label, current;
   final void Function(String) onChanged;
-  const _Tab(this.value, this.label, this.current, this.onChanged);
+  const _TypeTab(this.value, this.label, this.current, this.onChanged);
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final selected = current == value;
     return GestureDetector(
       onTap: () => onChanged(value),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? colors.primary : Colors.transparent,
+          color: selected ? AppTheme.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Text(label, textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15,
-                color: selected ? Colors.white : colors.onSurface.withOpacity(0.6))),
+        child: Text(label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                color: selected ? Colors.white : context.appColors.muted)),
       ),
     );
   }
@@ -833,46 +1286,67 @@ class _Tab extends StatelessWidget {
 
 class _TaskBanner extends StatelessWidget {
   Future<void> _open(BuildContext context) async {
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TaskSelectionScreen()));
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const TaskSelectionScreen()));
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.appColors;
     final auth = context.watch<AuthProvider>();
-    final colors = Theme.of(context).colorScheme;
     if (auth.taskId == null) {
       return OutlinedButton.icon(
         onPressed: () => _open(context),
         icon: const Icon(Icons.add_task_rounded, size: 18),
         label: const Text('Seleccionar tarea Bitrix'),
-        style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 46), side: BorderSide(color: colors.outline.withOpacity(0.5))),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 50),
+          side: BorderSide(color: c.line, width: 1.5),
+          foregroundColor: AppTheme.primary,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
       );
     }
-    return InkWell(
+    return GestureDetector(
       onTap: () => _open(context),
-      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: colors.primaryContainer.withOpacity(0.4),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colors.primary.withOpacity(0.4)),
+          color: Theme.of(context).brightness == Brightness.dark
+              ? c.surfaceTinted
+              : AppTheme.primaryContainer,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.primary.withOpacity(0.4), width: 1.5),
         ),
         child: Row(
           children: [
-            Icon(Icons.task_alt_rounded, color: colors.primary, size: 18),
-            const SizedBox(width: 10),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                  color: AppTheme.primary,
+                  borderRadius: BorderRadius.circular(10)),
+              child: const Icon(Icons.task_alt_rounded,
+                  color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(auth.taskName ?? 'Tarea seleccionada',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colors.primary), overflow: TextOverflow.ellipsis),
-                  Text('ID: ${auth.taskId}', style: TextStyle(fontSize: 11, color: colors.primary.withOpacity(0.7))),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: c.ink),
+                      overflow: TextOverflow.ellipsis),
+                  Text('ID: ${auth.taskId}',
+                      style: const TextStyle(
+                          fontSize: 11, color: AppTheme.primary)),
                 ],
               ),
             ),
-            Icon(Icons.edit_rounded, size: 16, color: colors.primary.withOpacity(0.7)),
+            Icon(Icons.edit_rounded, size: 16, color: c.muted),
           ],
         ),
       ),
@@ -880,30 +1354,115 @@ class _TaskBanner extends StatelessWidget {
   }
 }
 
-class _CurrencyPicker extends StatelessWidget {
-  final String value;
-  final ValueChanged<String?> onChanged;
-  const _CurrencyPicker({required this.value, required this.onChanged});
+class _MoneyTile extends StatelessWidget {
+  final String label;
+  final TextEditingController? controller;
+  final String? displayValue;
+  final Color? accent;
+  final bool optional;
+
+  const _MoneyTile({
+    required this.label,
+    this.controller,
+    this.displayValue,
+    this.accent,
+    this.optional = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final c = context.appColors;
     return Container(
-      decoration: BoxDecoration(border: Border.all(color: colors.outline), borderRadius: BorderRadius.circular(12)),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value, padding: const EdgeInsets.symmetric(horizontal: 12),
-          borderRadius: BorderRadius.circular(12), onChanged: onChanged,
-          items: const [
-            DropdownMenuItem(value: 'PEN', child: Text('S/')),
-            DropdownMenuItem(value: 'USD', child: Text('\$')),
-            DropdownMenuItem(value: 'EUR', child: Text('€')),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: c.line, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              Flexible(
+                child: Text(label.toUpperCase(),
+                    style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: c.muted,
+                        letterSpacing: 0.4),
+                    overflow: TextOverflow.ellipsis),
+              ),
+              if (optional)
+                Text(' · opc',
+                    style: TextStyle(fontSize: 9, color: c.muted2)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (controller != null)
+            TextFormField(
+              controller: controller,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              style: TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w800, color: accent ?? c.ink),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+                contentPadding: EdgeInsets.zero,
+                isDense: true,
+              ),
+            )
+          else
+            Text(displayValue ?? '—',
+                style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w800, color: accent ?? c.ink)),
+        ],
+      ),
+    );
+  }
+}
+
+class _AttachButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _AttachButton(
+      {required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: c.line, width: 1.5),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: AppTheme.primary, size: 22),
+            const SizedBox(height: 6),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primary)),
           ],
         ),
       ),
     );
   }
 }
+
+// ─── Item widgets (lógica sin cambios) ───────────────────────────────────────
 
 class _ItemData {
   final TextEditingController descripCtrl;
@@ -920,16 +1479,24 @@ class _ItemData {
         _ocrSubtotal = null;
 
   _ItemData.fromMap(Map<dynamic, dynamic> m)
-      : descripCtrl = TextEditingController(text: m['descrip']?.toString() ?? ''),
-        unitCtrl = TextEditingController(text: m['unitOfMeasure']?.toString() ?? ''),
-        quantityCtrl = TextEditingController(text: m['quantity']?.toString() ?? '1'),
-        priceCtrl = TextEditingController(text: m['unitPrice']?.toString() ?? ''),
-        _ocrSubtotal = m['subtotal'] != null ? (m['subtotal'] as num).toDouble() : null;
+      : descripCtrl =
+            TextEditingController(text: m['descrip']?.toString() ?? ''),
+        unitCtrl = TextEditingController(
+            text: m['unitOfMeasure']?.toString() ?? ''),
+        quantityCtrl = TextEditingController(
+            text: m['quantity']?.toString() ?? '1'),
+        priceCtrl = TextEditingController(
+            text: m['unitPrice']?.toString() ?? ''),
+        _ocrSubtotal = m['subtotal'] != null
+            ? (m['subtotal'] as num).toDouble()
+            : null;
 
   double get subtotal {
-    final calculated = (double.tryParse(quantityCtrl.text) ?? 0) * (double.tryParse(priceCtrl.text) ?? 0);
-    // Si el precio no fue ingresado pero el OCR tenía subtotal, usar ese valor
-    if (calculated == 0 && _ocrSubtotal != null && _ocrSubtotal! > 0) return _ocrSubtotal!;
+    final calculated = (double.tryParse(quantityCtrl.text) ?? 0) *
+        (double.tryParse(priceCtrl.text) ?? 0);
+    if (calculated == 0 && _ocrSubtotal != null && _ocrSubtotal! > 0) {
+      return _ocrSubtotal!;
+    }
     return calculated;
   }
 
@@ -946,41 +1513,58 @@ class _ItemTile extends StatelessWidget {
   final int index;
   final VoidCallback onRemove;
   final VoidCallback onChanged;
-
-  const _ItemTile({required this.item, required this.index, required this.onRemove, required this.onChanged});
+  const _ItemTile(
+      {required this.item,
+      required this.index,
+      required this.onRemove,
+      required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final c = context.appColors;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: colors.surfaceVariant.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colors.outlineVariant),
+        color: c.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: c.line, width: 1.5),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
-              Text('Item ${index + 1}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.outline)),
+              Text('Item ${index + 1}',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: c.muted)),
               const Spacer(),
-              GestureDetector(onTap: onRemove, child: Icon(Icons.close_rounded, color: colors.error, size: 18)),
+              GestureDetector(
+                onTap: onRemove,
+                child: const Icon(Icons.close_rounded,
+                    color: AppTheme.error, size: 18),
+              ),
             ],
           ),
-          const SizedBox(height: 8),
-          TextField(controller: item.descripCtrl, onChanged: (_) => onChanged(), decoration: const InputDecoration(labelText: 'Descripción', isDense: true)),
+          const SizedBox(height: 10),
+          TextField(
+              controller: item.descripCtrl,
+              onChanged: (_) => onChanged(),
+              decoration: const InputDecoration(
+                  labelText: 'Descripción', isDense: true)),
           const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: item.quantityCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => onChanged(),
-                  decoration: const InputDecoration(labelText: 'Cantidad', isDense: true),
+                  decoration: const InputDecoration(
+                      labelText: 'Cantidad', isDense: true),
                 ),
               ),
               const SizedBox(width: 10),
@@ -988,9 +1572,11 @@ class _ItemTile extends StatelessWidget {
                 flex: 2,
                 child: TextField(
                   controller: item.priceCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => onChanged(),
-                  decoration: const InputDecoration(labelText: 'Precio unitario', isDense: true),
+                  decoration: const InputDecoration(
+                      labelText: 'Precio unitario', isDense: true),
                 ),
               ),
             ],
@@ -998,13 +1584,19 @@ class _ItemTile extends StatelessWidget {
           const SizedBox(height: 8),
           TextField(
             controller: item.unitCtrl,
-            decoration: const InputDecoration(labelText: 'Unidad de medida', isDense: true),
+            decoration: const InputDecoration(
+                labelText: 'Unidad de medida', isDense: true),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
-            child: Text('Subtotal: S/ ${item.subtotal.toStringAsFixed(2)}',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: colors.primary)),
+            child: Text(
+              'Subtotal: S/ ${item.subtotal.toStringAsFixed(2)}',
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.primary),
+            ),
           ),
         ],
       ),

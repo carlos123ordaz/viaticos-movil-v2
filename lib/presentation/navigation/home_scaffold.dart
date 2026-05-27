@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/theme/app_theme.dart';
 
 class HomeScaffold extends StatelessWidget {
   final Widget child;
@@ -14,16 +15,13 @@ class HomeScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final idx = _selectedIndex(context);
+    final c = context.appColors;
     return Scaffold(
       body: child,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border(
-            top: BorderSide(
-              color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
-            ),
-          ),
+          color: c.surface,
+          border: Border(top: BorderSide(color: c.line, width: 1)),
         ),
         child: NavigationBar(
           selectedIndex: idx,
@@ -31,10 +29,8 @@ class HomeScaffold extends StatelessWidget {
             if (i == 0) context.go('/home');
             if (i == 1) context.go('/profile');
           },
-          backgroundColor: Colors.white,
           elevation: 0,
-          indicatorColor:
-              Theme.of(context).colorScheme.primaryContainer,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.receipt_long_outlined),

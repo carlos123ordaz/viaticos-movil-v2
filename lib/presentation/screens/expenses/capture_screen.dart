@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../data/services/expense_service.dart';
 
 class CaptureScreen extends StatefulWidget {
@@ -13,7 +15,8 @@ class CaptureScreen extends StatefulWidget {
   State<CaptureScreen> createState() => _CaptureScreenState();
 }
 
-class _CaptureScreenState extends State<CaptureScreen> {
+class _CaptureScreenState extends State<CaptureScreen>
+    with TickerProviderStateMixin {
   final _picker = ImagePicker();
 
   String? _filePath;
@@ -23,8 +26,36 @@ class _CaptureScreenState extends State<CaptureScreen> {
   Map<String, dynamic>? _extractedData;
   bool _showResult = false;
 
+  late final AnimationController _pulseCtrl;
+  late final AnimationController _rotateCtrl;
+  late final Animation<double> _pulseAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _rotateCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat();
+    _pulseAnim = Tween<double>(begin: 0.92, end: 1.08).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    _rotateCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _pickCamera() async {
-    final result = await _picker.pickImage(source: ImageSource.camera, imageQuality: 85, maxWidth: 1600);
+    final result =
+        await _picker.pickImage(source: ImageSource.camera, imageQuality: 85, maxWidth: 1600);
     if (result != null) {
       setState(() {
         _filePath = result.path;
@@ -37,7 +68,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
   }
 
   Future<void> _pickGallery() async {
-    final result = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 1600);
+    final result =
+        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 1600);
     if (result != null) {
       setState(() {
         _filePath = result.path;
@@ -50,10 +82,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
   }
 
   Future<void> _pickPdf() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-    );
+    final result = await FilePicker.platform
+        .pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
     if (result != null && result.files.single.path != null) {
       setState(() {
         _filePath = result.files.single.path!;
@@ -75,22 +105,28 @@ class _CaptureScreenState extends State<CaptureScreen> {
       final service = context.read<ExpenseService>();
       final data = await service.captureVoucher(_filePath!);
       if (!mounted) return;
-      final items = (data['items'] as List<dynamic>? ?? []).map((item) => <String, dynamic>{
-        'descrip': item['descrip'] ?? item['description'] ?? '',
-        'unitOfMeasure': item['unitOfMeasure'] ?? '',
-        'unitPrice': item['unitPrice'],
-        'quantity': item['quantity'],
-        'subtotal': item['subtotal'],
-      }).toList();
+      final items =
+          (data['items'] as List<dynamic>? ?? []).map((item) => <String, dynamic>{
+                'descrip': item['descrip'] ?? item['description'] ?? '',
+                'unitOfMeasure': item['unitOfMeasure'] ?? '',
+                'unitPrice': item['unitPrice'],
+                'quantity': item['quantity'],
+                'subtotal': item['subtotal'],
+              }).toList();
       setState(() {
-        _extractedData = {...data, 'descrip': data['descrip'] ?? data['description'] ?? '', 'items': items};
+        _extractedData = {
+          ...data,
+          'descrip': data['descrip'] ?? data['description'] ?? '',
+          'items': items,
+        };
         _showResult = true;
         _isProcessing = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = 'Error al procesar el archivo. Verifica tu conexión e intenta de nuevo.';
+        _error =
+            'Error al procesar el archivo. Verifica tu conexión e intenta de nuevo.';
         _isProcessing = false;
       });
     }
@@ -112,59 +148,67 @@ class _CaptureScreenState extends State<CaptureScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.appColors;
     return Stack(
       children: [
         Scaffold(
-          backgroundColor: const Color(0xFFFAFAFE),
+          backgroundColor: c.background,
           appBar: AppBar(
-            backgroundColor: Colors.white,
+            backgroundColor: c.surface,
             elevation: 0,
-            surfaceTintColor: Colors.white,
-            title: const Text('Escanear Comprobante',
-                style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+            surfaceTintColor: c.surface,
+            title: Text('Escanear Comprobante',
+                style: TextStyle(
+                    fontWeight: FontWeight.w700, color: c.ink)),
             centerTitle: true,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF374151)),
+              icon: Icon(Icons.arrow_back_rounded, color: c.ink),
               onPressed: () => Navigator.of(context).pop(),
             ),
           ),
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // Opciones de captura
+              // Fuentes de captura
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  color: c.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: AppTheme.cardShadow,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Seleccionar fuente',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                    Text('Seleccionar fuente',
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: c.ink)),
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        Expanded(child: _SourceButton(
+                        Expanded(
+                            child: _SourceButton(
                           icon: Icons.camera_alt_rounded,
                           label: 'Cámara',
-                          color: const Color(0xFF4F46E5),
+                          color: AppTheme.primary,
                           onTap: _pickCamera,
                         )),
                         const SizedBox(width: 10),
-                        Expanded(child: _SourceButton(
+                        Expanded(
+                            child: _SourceButton(
                           icon: Icons.photo_library_rounded,
                           label: 'Galería',
-                          color: const Color(0xFF059669),
+                          color: AppTheme.secondary,
                           onTap: _pickGallery,
                         )),
                         const SizedBox(width: 10),
-                        Expanded(child: _SourceButton(
+                        Expanded(
+                            child: _SourceButton(
                           icon: Icons.picture_as_pdf_rounded,
                           label: 'PDF',
-                          color: const Color(0xFFDC2626),
+                          color: AppTheme.coral,
                           onTap: _pickPdf,
                         )),
                       ],
@@ -177,40 +221,54 @@ class _CaptureScreenState extends State<CaptureScreen> {
               if (_filePath != null) ...[
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                    color: c.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: AppTheme.cardShadow,
                   ),
                   child: Column(
                     children: [
                       ClipRRect(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                        borderRadius:
+                            const BorderRadius.vertical(top: Radius.circular(20)),
                         child: _isPdf
                             ? Container(
                                 height: 200,
-                                color: const Color(0xFFF9FAFB),
-                                child: const Column(
+                                color: c.surfaceTinted,
+                                child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.picture_as_pdf_rounded, size: 64, color: Color(0xFFDC2626)),
-                                    SizedBox(height: 12),
-                                    Text('Archivo PDF seleccionado', style: TextStyle(fontSize: 14, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
+                                    const Icon(Icons.picture_as_pdf_rounded,
+                                        size: 64, color: AppTheme.coral),
+                                    const SizedBox(height: 12),
+                                    Text('Archivo PDF seleccionado',
+                                        style: TextStyle(
+                                            fontSize: 14,
+                                            color: c.muted,
+                                            fontWeight: FontWeight.w500)),
                                   ],
                                 ),
                               )
-                            : Image.file(File(_filePath!), height: 280, width: double.infinity, fit: BoxFit.cover),
+                            : Image.file(File(_filePath!),
+                                height: 280,
+                                width: double.infinity,
+                                fit: BoxFit.cover),
                       ),
                       Padding(
                         padding: const EdgeInsets.all(12),
                         child: Row(
                           children: [
-                            Icon(_isPdf ? Icons.picture_as_pdf_rounded : Icons.image_rounded,
-                                size: 16, color: const Color(0xFF6B7280)),
+                            Icon(
+                                _isPdf
+                                    ? Icons.picture_as_pdf_rounded
+                                    : Icons.image_rounded,
+                                size: 16,
+                                color: c.muted),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 _filePath!.split('/').last,
-                                style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                                style: TextStyle(
+                                    fontSize: 13, color: c.muted),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -220,7 +278,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
                                 _extractedData = null;
                                 _error = null;
                               }),
-                              child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFFEF4444)),
+                              child: const Icon(Icons.close_rounded,
+                                  size: 18, color: AppTheme.coral),
                             ),
                           ],
                         ),
@@ -230,20 +289,22 @@ class _CaptureScreenState extends State<CaptureScreen> {
                 ),
                 const SizedBox(height: 16),
               ] else ...[
-                // Placeholder
                 Container(
                   height: 200,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF9FAFB),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE5E7EB), style: BorderStyle.solid),
+                    color: c.surfaceTinted,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: c.line, width: 1.5),
                   ),
-                  child: const Column(
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.add_photo_alternate_outlined, size: 48, color: Color(0xFFD1D5DB)),
-                      SizedBox(height: 12),
-                      Text('Selecciona una fuente arriba', style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF))),
+                      Icon(Icons.add_photo_alternate_outlined,
+                          size: 48, color: c.line),
+                      const SizedBox(height: 12),
+                      Text('Selecciona una fuente arriba',
+                          style:
+                              TextStyle(fontSize: 14, color: c.muted)),
                     ],
                   ),
                 ),
@@ -255,44 +316,123 @@ class _CaptureScreenState extends State<CaptureScreen> {
                   margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFFECACA)),
+                    color: AppTheme.errorContainer,
+                    borderRadius: BorderRadius.circular(12),
+                    border:
+                        Border.all(color: AppTheme.error.withOpacity(0.3)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline_rounded, size: 18, color: Color(0xFFDC2626)),
+                      const Icon(Icons.error_outline_rounded,
+                          size: 18, color: AppTheme.error),
                       const SizedBox(width: 8),
-                      Expanded(child: Text(_error!, style: const TextStyle(fontSize: 13, color: Color(0xFFDC2626), fontWeight: FontWeight.w500))),
+                      Expanded(
+                          child: Text(_error!,
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppTheme.error,
+                                  fontWeight: FontWeight.w500))),
                     ],
                   ),
                 ),
               // Botón OCR
               SizedBox(
-                width: double.infinity, height: 52,
+                width: double.infinity,
+                height: 54,
                 child: FilledButton.icon(
-                  onPressed: (_filePath == null || _isProcessing) ? null : _processOcr,
+                  onPressed:
+                      (_filePath == null || _isProcessing) ? null : _processOcr,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4F46E5),
-                    disabledBackgroundColor: const Color(0xFFC7C7CC),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    backgroundColor: AppTheme.primary,
+                    disabledBackgroundColor: c.line,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
                   ),
-                  icon: _isProcessing
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Icon(Icons.document_scanner_rounded, size: 20),
-                  label: Text(_isProcessing ? 'Procesando OCR...' : 'Procesar con OCR',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  icon: const Icon(Icons.document_scanner_rounded, size: 20),
+                  label: const Text('Procesar con OCR',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w700)),
                 ),
               ),
-              const SizedBox(height: 8),
-              const Center(
-                child: Text('El OCR extrae automáticamente los datos del comprobante',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)), textAlign: TextAlign.center),
+              const SizedBox(height: 10),
+              Center(
+                child: Text(
+                    'El OCR extrae automáticamente los datos del comprobante',
+                    style: TextStyle(fontSize: 12, color: c.muted),
+                    textAlign: TextAlign.center),
               ),
             ],
           ),
         ),
-        // Modal: Resultado OCR
+
+        // ── Overlay: Procesando ─────────────────────────────────────────────
+        if (_isProcessing)
+          Container(
+            color: Colors.black.withOpacity(0.55),
+            child: Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 40),
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+                decoration: BoxDecoration(
+                  color: c.surface,
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withOpacity(0.18),
+                        blurRadius: 40,
+                        offset: const Offset(0, 12)),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ScaleTransition(
+                      scale: _pulseAnim,
+                      child: Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryContainer,
+                          shape: BoxShape.circle,
+                        ),
+                        child: AnimatedBuilder(
+                          animation: _rotateCtrl,
+                          builder: (_, child) => Transform.rotate(
+                            angle: _rotateCtrl.value * 2 * math.pi,
+                            child: child,
+                          ),
+                          child: const Icon(Icons.document_scanner_rounded,
+                              size: 38, color: AppTheme.primary),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text('Procesando comprobante',
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: c.ink),
+                        textAlign: TextAlign.center),
+                    const SizedBox(height: 8),
+                    Text('Extrayendo datos automáticamente...',
+                        style: TextStyle(fontSize: 13, color: c.muted),
+                        textAlign: TextAlign.center),
+                    const SizedBox(height: 28),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        minHeight: 4,
+                        backgroundColor: c.surfaceTinted,
+                        color: AppTheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+        // ── Modal: Resultado OCR ────────────────────────────────────────────
         if (_showResult && _extractedData != null)
           GestureDetector(
             onTap: () => setState(() => _showResult = false),
@@ -303,49 +443,77 @@ class _CaptureScreenState extends State<CaptureScreen> {
                 child: GestureDetector(
                   onTap: () {},
                   child: Container(
-                    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.88),
+                    decoration: BoxDecoration(
+                      color: c.surface,
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(28)),
                     ),
                     child: Column(
                       children: [
                         Container(
                           margin: const EdgeInsets.only(top: 12),
-                          width: 36, height: 4,
-                          decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)),
+                          width: 36,
+                          height: 4,
+                          decoration: BoxDecoration(
+                              color: c.line,
+                              borderRadius: BorderRadius.circular(2)),
                         ),
                         Expanded(
                           child: ListView(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 16),
                             children: [
-                              const CircleAvatar(
-                                radius: 28, backgroundColor: Color(0xFFECFDF5),
-                                child: Icon(Icons.check_rounded, color: Color(0xFF059669), size: 28),
+                              Container(
+                                width: 56,
+                                height: 56,
+                                decoration: const BoxDecoration(
+                                    color: AppTheme.secondaryContainer,
+                                    shape: BoxShape.circle),
+                                child: const Icon(Icons.check_rounded,
+                                    color: AppTheme.secondary, size: 28),
                               ),
                               const SizedBox(height: 12),
-                              const Center(child: Text('Comprobante procesado',
-                                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF111827)))),
+                              Center(
+                                  child: Text('Comprobante procesado',
+                                      style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w800,
+                                          color: c.ink))),
                               const SizedBox(height: 4),
-                              const Center(child: Text('Revisa los datos y confirma para continuar',
-                                  style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)))),
+                              Center(
+                                  child: Text(
+                                      'Revisa los datos y confirma para continuar',
+                                      style: TextStyle(
+                                          fontSize: 13,
+                                          color: c.muted))),
                               const SizedBox(height: 20),
                               if (_extractedData!['total'] != null)
                                 Container(
                                   padding: const EdgeInsets.all(20),
                                   margin: const EdgeInsets.only(bottom: 14),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF0FDF4),
+                                    color: AppTheme.secondaryContainer,
                                     borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: const Color(0xFFBBF7D0)),
+                                    border: Border.all(
+                                        color: AppTheme.secondary
+                                            .withOpacity(0.3)),
                                   ),
                                   child: Column(
                                     children: [
-                                      const Text('Total detectado', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF065F46))),
+                                      const Text('Total detectado',
+                                          style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppTheme.secondary)),
                                       const SizedBox(height: 4),
                                       Text(
                                         '${_moneda(_extractedData!['currencyCode'] as String?)} ${((_extractedData!['total'] as num?) ?? 0).toStringAsFixed(2)}',
-                                        style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: Color(0xFF059669)),
+                                        style: const TextStyle(
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.w800,
+                                            color: AppTheme.secondary),
                                       ),
                                     ],
                                   ),
@@ -353,21 +521,29 @@ class _CaptureScreenState extends State<CaptureScreen> {
                               Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                                  color: c.surfaceTinted,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: c.line),
+                                  boxShadow: AppTheme.cardShadow,
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     if (_extractedData!['businessName'] != null)
-                                      _ResultField('Razón Social', _extractedData!['businessName'] as String),
+                                      _ResultField('Razón Social',
+                                          _extractedData!['businessName']
+                                              as String),
                                     if (_extractedData!['ruc'] != null)
-                                      _ResultField('RUC', _extractedData!['ruc'] as String),
+                                      _ResultField(
+                                          'RUC', _extractedData!['ruc'] as String),
                                     if (_extractedData!['address'] != null)
-                                      _ResultField('Dirección', _extractedData!['address'] as String),
-                                    if (_extractedData!['descrip'] != null && (_extractedData!['descrip'] as String).isNotEmpty)
-                                      _ResultField('Descripción', _extractedData!['descrip'] as String),
+                                      _ResultField('Dirección',
+                                          _extractedData!['address'] as String),
+                                    if (_extractedData!['descrip'] != null &&
+                                        (_extractedData!['descrip'] as String)
+                                            .isNotEmpty)
+                                      _ResultField('Descripción',
+                                          _extractedData!['descrip'] as String),
                                   ],
                                 ),
                               ),
@@ -375,16 +551,30 @@ class _CaptureScreenState extends State<CaptureScreen> {
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-                          decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE5E7EB)))),
+                          padding: EdgeInsets.fromLTRB(20, 12, 20,
+                              20 + MediaQuery.of(context).padding.bottom),
+                          decoration: BoxDecoration(
+                              border: Border(
+                                  top: BorderSide(color: c.line))),
                           child: Row(
                             children: [
                               Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () => setState(() => _showResult = false),
-                                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                                  label: const Text('Volver'),
-                                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                                child: OutlinedButton(
+                                  onPressed: () =>
+                                      setState(() => _showResult = false),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 14),
+                                    side: BorderSide(
+                                        color: c.line, width: 1.5),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(14)),
+                                  ),
+                                  child: Text('Volver',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: c.ink)),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -392,11 +582,19 @@ class _CaptureScreenState extends State<CaptureScreen> {
                                 flex: 2,
                                 child: FilledButton.icon(
                                   onPressed: _confirmAndNavigate,
-                                  icon: const Icon(Icons.check_circle_rounded, size: 20),
-                                  label: const Text('Continuar', style: TextStyle(fontWeight: FontWeight.w700)),
+                                  icon: const Icon(
+                                      Icons.check_circle_rounded,
+                                      size: 20),
+                                  label: const Text('Continuar',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w700)),
                                   style: FilledButton.styleFrom(
-                                    backgroundColor: const Color(0xFF4F46E5),
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    backgroundColor: AppTheme.primary,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 14),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(14)),
                                   ),
                                 ),
                               ),
@@ -421,7 +619,11 @@ class _SourceButton extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
 
-  const _SourceButton({required this.icon, required this.label, required this.color, required this.onTap});
+  const _SourceButton(
+      {required this.icon,
+      required this.label,
+      required this.color,
+      required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -431,14 +633,18 @@ class _SourceButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withOpacity(0.25)),
         ),
         child: Column(
           children: [
             Icon(icon, color: color, size: 28),
             const SizedBox(height: 6),
-            Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: color)),
           ],
         ),
       ),
@@ -453,14 +659,24 @@ class _ResultField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.appColors;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF9CA3AF), letterSpacing: 0.5)),
-          const SizedBox(height: 2),
-          Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF111827))),
+          Text(label.toUpperCase(),
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: c.muted,
+                  letterSpacing: 0.5)),
+          const SizedBox(height: 3),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: c.ink)),
         ],
       ),
     );

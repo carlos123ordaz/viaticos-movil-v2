@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/expense_model.dart';
 
@@ -12,16 +13,25 @@ class CategoryConfig {
 
 const _categoryConfigs = {
   ExpenseCategory.alimentacion:
-      CategoryConfig(Icons.restaurant_rounded, Color(0xFFD97706), Color(0xFFFEF3C7)),
+      CategoryConfig(Icons.restaurant_rounded, AppTheme.coral, AppTheme.coralTint),
   ExpenseCategory.transporte:
-      CategoryConfig(Icons.directions_car_rounded, Color(0xFF2563EB), Color(0xFFDBEAFE)),
+      CategoryConfig(Icons.directions_car_rounded, AppTheme.sky, AppTheme.skyTint),
   ExpenseCategory.alojamiento:
-      CategoryConfig(Icons.hotel_rounded, Color(0xFF7C3AED), Color(0xFFEDE9FE)),
+      CategoryConfig(Icons.hotel_rounded, AppTheme.violet, AppTheme.violetTint),
   ExpenseCategory.compras:
-      CategoryConfig(Icons.shopping_bag_rounded, Color(0xFFDB2777), Color(0xFFFCE7F3)),
+      CategoryConfig(Icons.shopping_bag_rounded, AppTheme.mint, AppTheme.mintTint),
   ExpenseCategory.otros:
-      CategoryConfig(Icons.receipt_rounded, Color(0xFF059669), Color(0xFFD1FAE5)),
+      CategoryConfig(Icons.receipt_rounded, AppTheme.primary, AppTheme.primaryContainer),
 };
+
+Color getCategoryColor(ExpenseCategory cat) =>
+    _categoryConfigs[cat]?.color ?? AppTheme.primary;
+
+Color getCategoryBg(ExpenseCategory cat) =>
+    _categoryConfigs[cat]?.background ?? AppTheme.primaryContainer;
+
+IconData getCategoryIcon(ExpenseCategory cat) =>
+    _categoryConfigs[cat]?.icon ?? Icons.receipt_rounded;
 
 class ExpenseCard extends StatelessWidget {
   final ExpenseModel expense;
@@ -37,16 +47,17 @@ class ExpenseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final config =
-        _categoryConfigs[expense.category] ?? _categoryConfigs[ExpenseCategory.otros]!;
+    final config = _categoryConfigs[expense.category] ?? _categoryConfigs[ExpenseCategory.otros]!;
+    final c = context.appColors;
 
     final card = InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
+            // Category icon
             Container(
               width: 48,
               height: 48,
@@ -54,68 +65,98 @@ class ExpenseCard extends StatelessWidget {
                 color: config.background,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(config.icon, color: config.color, size: 24),
+              child: Icon(config.icon, color: config.color, size: 22),
             ),
             const SizedBox(width: 14),
+            // Description + meta
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     expense.description,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                    style: TextStyle(
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: c.ink,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 5),
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: config.background,
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
                           expense.category.label,
                           style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Plus Jakarta Sans',
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
                             color: config.color,
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
+                      Container(
+                        width: 3,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: c.muted2,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Text(
                         Formatters.relativeDate(expense.date),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
+                        style: TextStyle(
+                          fontFamily: 'Plus Jakarta Sans',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: c.muted,
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
+            // Amount
             Text(
               Formatters.currency(expense.amount, currency: expense.currency),
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+              style: TextStyle(
+                fontFamily: 'Plus Jakarta Sans',
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: c.ink,
+                letterSpacing: -0.3,
+              ),
             ),
           ],
         ),
       ),
     );
 
-    if (onDelete == null) {
-      return Card(child: card);
-    }
+    final styledCard = Container(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: AppTheme.cardShadow,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: card,
+      ),
+    );
+
+    if (onDelete == null) return styledCard;
 
     return Dismissible(
       key: Key(expense.id),
@@ -125,16 +166,14 @@ class ExpenseCard extends StatelessWidget {
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Eliminar gasto'),
-            content: Text(
-                '¿Eliminar "${expense.description}"? Esta acción no se puede deshacer.'),
+            content: Text('¿Eliminar "${expense.description}"? Esta acción no se puede deshacer.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
                 child: const Text('Cancelar'),
               ),
               FilledButton(
-                style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error),
+                style: FilledButton.styleFrom(backgroundColor: AppTheme.error),
                 onPressed: () => Navigator.pop(ctx, true),
                 child: const Text('Eliminar'),
               ),
@@ -147,13 +186,12 @@ class ExpenseCard extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.errorContainer,
-          borderRadius: BorderRadius.circular(16),
+          color: AppTheme.errorContainer,
+          borderRadius: BorderRadius.circular(20),
         ),
-        child: Icon(Icons.delete_rounded,
-            color: Theme.of(context).colorScheme.error),
+        child: const Icon(Icons.delete_rounded, color: AppTheme.error),
       ),
-      child: Card(child: card),
+      child: styledCard,
     );
   }
 }

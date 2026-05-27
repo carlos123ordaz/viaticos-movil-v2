@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import '../../../core/theme/app_theme.dart';
 import '../../../data/services/expense_service.dart';
 
 const _kTips = [
@@ -224,7 +225,7 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
             width: size, height: size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFF4F46E5), width: 2),
+              border: Border.all(color: AppTheme.violet, width: 2),
             ),
           ),
         ),
@@ -240,19 +241,20 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
 
   @override
   Widget build(BuildContext context) {
+    final c = context.appColors;
     return Stack(
       children: [
         Scaffold(
-          backgroundColor: const Color(0xFFFAFAFE),
+          backgroundColor: c.background,
           appBar: AppBar(
-            backgroundColor: Colors.white,
+            backgroundColor: c.surface,
             elevation: 0,
-            surfaceTintColor: Colors.white,
-            title: const Text('Gasto por Voz',
-                style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+            surfaceTintColor: c.surface,
+            title: Text('Gasto por Voz',
+                style: TextStyle(fontWeight: FontWeight.w700, color: c.ink)),
             centerTitle: true,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF374151)),
+              icon: Icon(Icons.arrow_back_rounded, color: c.ink2),
               onPressed: () => Navigator.of(context).pop(),
             ),
             actions: [
@@ -269,9 +271,9 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                 margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEEF2FF),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFC7D2FE)),
+                  color: AppTheme.violetTint,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppTheme.violet.withOpacity(0.3)),
                 ),
                 child: const Row(
                   children: [
@@ -279,7 +281,7 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                     SizedBox(width: 8),
                     Expanded(
                       child: Text('Dicta tu gasto con el monto, categoría y detalles',
-                          style: TextStyle(fontSize: 13, color: Color(0xFF4338CA), fontWeight: FontWeight.w500)),
+                          style: TextStyle(fontSize: 13, color: AppTheme.primaryDark, fontWeight: FontWeight.w500)),
                     ),
                   ],
                 ),
@@ -289,9 +291,9 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                 margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: c.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  border: Border.all(color: c.line),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,8 +301,8 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Descripción del gasto',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+                        Text('Descripción del gasto',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.ink2)),
                         if (_textCtrl.text.isNotEmpty)
                           GestureDetector(
                             onTap: _resetState,
@@ -313,14 +315,14 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                       controller: _textCtrl,
                       maxLines: 4,
                       minLines: 3,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: 'Ej: "Almuerzo en restaurante por 45 soles"',
-                        hintStyle: TextStyle(color: Color(0xFFC7C7CC)),
+                        hintStyle: TextStyle(color: c.muted2),
                         border: InputBorder.none,
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
-                      style: const TextStyle(fontSize: 15, color: Color(0xFF111827)),
+                      style: TextStyle(fontSize: 15, color: c.ink),
                       onChanged: (_) => setState(() {}),
                     ),
                     if (_isListening) ...[
@@ -345,15 +347,15 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                   margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFFECACA)),
+                    color: AppTheme.errorContainer,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.error.withOpacity(0.3)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline_rounded, size: 18, color: Color(0xFFDC2626)),
+                      const Icon(Icons.error_outline_rounded, size: 18, color: AppTheme.error),
                       const SizedBox(width: 8),
-                      Expanded(child: Text(_error!, style: const TextStyle(fontSize: 13, color: Color(0xFFDC2626), fontWeight: FontWeight.w500))),
+                      Expanded(child: Text(_error!, style: const TextStyle(fontSize: 13, color: AppTheme.error, fontWeight: FontWeight.w500))),
                     ],
                   ),
                 ),
@@ -380,11 +382,11 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                                 child: Container(
                                   width: 80, height: 80,
                                   decoration: BoxDecoration(
-                                    color: _isListening ? const Color(0xFFDC2626) : const Color(0xFF4F46E5),
+                                    color: _isListening ? AppTheme.error : AppTheme.violet,
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: (_isListening ? const Color(0xFFDC2626) : const Color(0xFF4F46E5)).withOpacity(0.3),
+                                        color: (_isListening ? AppTheme.error : AppTheme.violet).withOpacity(0.3),
                                         blurRadius: 12, offset: const Offset(0, 4),
                                       ),
                                     ],
@@ -416,7 +418,7 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                   child: FilledButton.icon(
                     onPressed: (_textCtrl.text.trim().isEmpty || _isProcessing) ? null : _process,
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF4F46E5),
+                      backgroundColor: AppTheme.violet,
                       disabledBackgroundColor: const Color(0xFFC7C7CC),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
@@ -443,9 +445,9 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                   onTap: () {},
                   child: Container(
                     constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    decoration: BoxDecoration(
+                      color: c.surface,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -453,7 +455,7 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                         Container(
                           margin: const EdgeInsets.only(top: 12),
                           width: 36, height: 4,
-                          decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)),
+                          decoration: BoxDecoration(color: c.line, borderRadius: BorderRadius.circular(2)),
                         ),
                         const SizedBox(height: 12),
                         const CircleAvatar(
@@ -461,11 +463,11 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                           child: Icon(Icons.mic_outlined, color: Color(0xFF4F46E5), size: 28),
                         ),
                         const SizedBox(height: 12),
-                        const Text('¿Cómo dictar tu gasto?',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                        Text('¿Cómo dictar tu gasto?',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: c.ink)),
                         const SizedBox(height: 4),
-                        const Text('Sigue estos ejemplos para mejores resultados',
-                            style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF))),
+                        Text('Sigue estos ejemplos para mejores resultados',
+                            style: TextStyle(fontSize: 14, color: c.muted)),
                         const SizedBox(height: 16),
                         Flexible(
                           child: ListView(
@@ -511,9 +513,9 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                                   margin: const EdgeInsets.only(bottom: 10),
                                   padding: const EdgeInsets.all(14),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF9FAFB),
+                                    color: c.surfaceTinted,
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                                    border: Border.all(color: c.line),
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -529,11 +531,11 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                                             child: Icon(ex.icon, size: 18, color: ex.color),
                                           ),
                                           const SizedBox(width: 10),
-                                          Text(ex.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                                          Text(ex.title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.ink)),
                                         ],
                                       ),
                                       const SizedBox(height: 8),
-                                      Text(ex.text, style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280), fontStyle: FontStyle.italic)),
+                                      Text(ex.text, style: TextStyle(fontSize: 13, color: c.muted, fontStyle: FontStyle.italic)),
                                     ],
                                   ),
                                 ),
@@ -549,7 +551,7 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                             child: FilledButton(
                               onPressed: () => setState(() => _showGuide = false),
                               style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFF4F46E5),
+                                backgroundColor: AppTheme.violet,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 padding: const EdgeInsets.symmetric(vertical: 14),
                               ),
@@ -576,16 +578,16 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                   onTap: () {},
                   child: Container(
                     constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    decoration: BoxDecoration(
+                      color: c.surface,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                     ),
                     child: Column(
                       children: [
                         Container(
                           margin: const EdgeInsets.only(top: 12),
                           width: 36, height: 4,
-                          decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)),
+                          decoration: BoxDecoration(color: c.line, borderRadius: BorderRadius.circular(2)),
                         ),
                         Expanded(
                           child: ListView(
@@ -596,11 +598,11 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                                 child: Icon(Icons.check_rounded, color: Color(0xFF059669), size: 28),
                               ),
                               const SizedBox(height: 12),
-                              const Center(child: Text('Gasto reconocido',
-                                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF111827)))),
+                              Center(child: Text('Gasto reconocido',
+                                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: c.ink))),
                               const SizedBox(height: 4),
-                              const Center(child: Text('Revisa los datos y confirma para continuar',
-                                  style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)))),
+                              Center(child: Text('Revisa los datos y confirma para continuar',
+                                  style: TextStyle(fontSize: 14, color: c.muted))),
                               const SizedBox(height: 20),
                               // Total
                               Container(
@@ -626,9 +628,9 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                               Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: c.surfaceTinted,
                                   borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                                  border: Border.all(color: c.line),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -649,15 +651,15 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                                 Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: c.surfaceTinted,
                                     borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                                    border: Border.all(color: c.line),
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text('Items (${(_extractedData!['items'] as List).length})',
-                                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF374151))),
+                                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.ink2)),
                                       const SizedBox(height: 12),
                                       for (final item in _extractedData!['items'] as List)
                                         Padding(
@@ -668,9 +670,9 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                                                 child: Column(
                                                   crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
-                                                    Text(item['descrip'] as String? ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF111827))),
+                                                    Text(item['descrip'] as String? ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: c.ink)),
                                                     Text('${item['quantity']} × ${_moneda(_extractedData!['currencyCode'] as String?)} ${((item['unitPrice'] as num?) ?? 0).toStringAsFixed(2)}',
-                                                        style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+                                                        style: TextStyle(fontSize: 12, color: c.muted)),
                                                   ],
                                                 ),
                                               ),
@@ -689,7 +691,7 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                         // Acciones
                         Container(
                           padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-                          decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE5E7EB)))),
+                          decoration: BoxDecoration(border: Border(top: BorderSide(color: c.line))),
                           child: Row(
                             children: [
                               Expanded(
@@ -708,7 +710,7 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                                   icon: const Icon(Icons.check_circle_rounded, size: 20),
                                   label: const Text('Continuar', style: TextStyle(fontWeight: FontWeight.w700)),
                                   style: FilledButton.styleFrom(
-                                    backgroundColor: const Color(0xFF4F46E5),
+                                    backgroundColor: AppTheme.violet,
                                     padding: const EdgeInsets.symmetric(vertical: 14),
                                   ),
                                 ),
@@ -735,15 +737,16 @@ class _ResultField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.appColors;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label.toUpperCase(),
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF9CA3AF), letterSpacing: 0.5)),
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c.muted, letterSpacing: 0.5)),
           const SizedBox(height: 2),
-          Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF111827))),
+          Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: c.ink)),
         ],
       ),
     );

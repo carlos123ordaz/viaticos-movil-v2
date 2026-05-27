@@ -14,6 +14,7 @@ import 'data/services/user_service.dart';
 import 'presentation/navigation/app_router.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/expense_provider.dart';
+import 'presentation/providers/theme_provider.dart';
 
 class ViaticosApp extends StatefulWidget {
   final StorageService storage;
@@ -34,6 +35,7 @@ class _ViaticosAppState extends State<ViaticosApp> {
   late final ExpenseReportService _expenseReportService;
   late final AuthProvider _authProvider;
   late final ExpenseProvider _expenseProvider;
+  late final ThemeProvider _themeProvider;
   late final GoRouter _router;
 
   @override
@@ -49,6 +51,7 @@ class _ViaticosAppState extends State<ViaticosApp> {
     _expenseReportService = ExpenseReportService(_api, _bitrixTaskService);
     _authProvider = AuthProvider(_authService, _userService, widget.storage);
     _expenseProvider = ExpenseProvider(_expenseService);
+    _themeProvider = ThemeProvider();
     _router = buildRouter();
   }
 
@@ -58,6 +61,7 @@ class _ViaticosAppState extends State<ViaticosApp> {
       providers: [
         ChangeNotifierProvider.value(value: _authProvider),
         ChangeNotifierProvider.value(value: _expenseProvider),
+        ChangeNotifierProvider.value(value: _themeProvider),
         Provider.value(value: _authService),
         Provider.value(value: _expenseService),
         Provider.value(value: _costCenterService),
@@ -66,12 +70,21 @@ class _ViaticosAppState extends State<ViaticosApp> {
         Provider.value(value: _expenseReportService),
         Provider.value(value: widget.storage),
       ],
-      child: MaterialApp.router(
-        title: 'Viáticos',
-        theme: AppTheme.light(),
-        routerConfig: _router,
-        debugShowCheckedModeBanner: false,
-        locale: const Locale('es', 'PE'),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) => MaterialApp.router(
+          title: 'Viáticos',
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          themeMode: themeProvider.mode,
+          routerConfig: _router,
+          debugShowCheckedModeBanner: false,
+          locale: const Locale('es', 'PE'),
+          builder: (context, child) => GestureDetector(
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            behavior: HitTestBehavior.opaque,
+            child: child!,
+          ),
+        ),
       ),
     );
   }

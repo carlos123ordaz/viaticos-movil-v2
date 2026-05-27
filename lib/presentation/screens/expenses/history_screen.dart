@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/expense_model.dart';
 import '../../../data/services/expense_service.dart';
@@ -38,9 +39,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final taskId = auth.taskId;
     await context.read<ExpenseProvider>().load(taskId: taskId);
     if (taskId != null && mounted) {
-      final finalized = await context
-          .read<ExpenseReportService>()
-          .getFinalizationState(taskId);
+      final finalized = await context.read<ExpenseReportService>().getFinalizationState(taskId);
       if (mounted) setState(() => _isReportFinalized = finalized);
     } else if (mounted) {
       setState(() => _isReportFinalized = false);
@@ -109,7 +108,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _processOcr(String filePath) async {
     if (!mounted) return;
-
     final cancelToken = CancelToken();
     bool dialogOpen = true;
 
@@ -125,18 +123,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
       barrierDismissible: false,
       useRootNavigator: true,
       builder: (ctx) => AlertDialog(
-        content: const Column(
+        content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Row(children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 16),
-              Expanded(child: Text('Procesando comprobante...')),
+              CircularProgressIndicator(color: AppTheme.primary),
+              const SizedBox(width: 16),
+              const Expanded(child: Text('Procesando comprobante...')),
             ]),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Esto puede tardar unos segundos',
-              style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+              style: TextStyle(fontSize: 12, color: ctx.appColors.muted),
             ),
           ],
         ),
@@ -190,7 +188,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       context: context,
       isScrollControlled: true,
       useRootNavigator: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => _OcrResultSheet(
         data: data,
         onConfirm: () {
@@ -209,8 +206,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Tarea requerida'),
-          content: const Text(
-              'Debes seleccionar una tarea antes de registrar un gasto.'),
+          content: const Text('Debes seleccionar una tarea antes de registrar un gasto.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -232,40 +228,111 @@ class _HistoryScreenState extends State<HistoryScreen> {
       context: context,
       isScrollControlled: true,
       useRootNavigator: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
-        final colors = Theme.of(ctx).colorScheme;
         final bottomPadding = MediaQuery.of(ctx).padding.bottom;
+        final cs = ctx.appColors;
         return Padding(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + bottomPadding),
+          padding: EdgeInsets.fromLTRB(20, 14, 20, 28 + bottomPadding),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
-              const SizedBox(height: 14),
-              Text('Nuevo gasto', style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 2),
-              Text('Elige cómo registrar el gasto', style: TextStyle(fontSize: 13, color: colors.outline)),
-              const SizedBox(height: 14),
-              _AddOption(icon: Icons.edit_note_rounded, color: colors.primary, label: 'Manual',
-                  subtitle: 'Ingresa los datos manualmente',
-                  onTap: () { Navigator.pop(ctx); context.push('/add-expense'); }),
-              const SizedBox(height: 8),
-              _AddOption(icon: Icons.mic_rounded, color: const Color(0xFF4F46E5), label: 'Por voz',
-                  subtitle: 'Dicta tu gasto y la IA lo procesa',
-                  onTap: () { Navigator.pop(ctx); context.push('/voice-expense'); }),
-              const SizedBox(height: 8),
-              _AddOption(icon: Icons.camera_alt_rounded, color: const Color(0xFF059669), label: 'Cámara',
-                  subtitle: 'Toma una foto del comprobante',
-                  onTap: () => Navigator.pop(ctx, _CaptureSource.camera)),
-              const SizedBox(height: 8),
-              _AddOption(icon: Icons.photo_library_rounded, color: const Color(0xFF0891B2), label: 'Galería',
-                  subtitle: 'Elige una imagen de tu galería',
-                  onTap: () => Navigator.pop(ctx, _CaptureSource.gallery)),
-              const SizedBox(height: 8),
-              _AddOption(icon: Icons.picture_as_pdf_rounded, color: const Color(0xFFDC2626), label: 'PDF',
-                  subtitle: 'Sube un archivo PDF del comprobante',
-                  onTap: () => Navigator.pop(ctx, _CaptureSource.pdf)),
+              // Handle
+              Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: cs.line,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Nuevo gasto',
+                    style: TextStyle(
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: cs.ink,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: cs.surfaceTinted,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.close_rounded, size: 18, color: cs.muted),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Elige cómo quieres registrarlo.',
+                  style: TextStyle(fontSize: 14, color: cs.muted),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _MethodCard(
+                color: AppTheme.primary,
+                tint: AppTheme.primaryContainer,
+                icon: Icons.camera_alt_rounded,
+                title: 'Escanear comprobante',
+                desc: 'Toma foto o sube PDF · extraemos los datos con IA.',
+                badge: 'Más rápido',
+                onTap: () => Navigator.pop(ctx, _CaptureSource.camera),
+              ),
+              const SizedBox(height: 10),
+              _MethodCard(
+                color: AppTheme.violet,
+                tint: AppTheme.violetTint,
+                icon: Icons.mic_rounded,
+                title: 'Dictar por voz',
+                desc: '"Almuerzo en La Lucha, 45 soles, con boleta"',
+                onTap: () { Navigator.pop(ctx); context.push('/voice-expense'); },
+              ),
+              const SizedBox(height: 10),
+              _MethodCard(
+                color: cs.ink2,
+                tint: cs.surfaceTinted,
+                icon: Icons.edit_note_rounded,
+                title: 'Llenar manualmente',
+                desc: 'Ingresa todos los datos paso a paso.',
+                onTap: () { Navigator.pop(ctx); context.push('/add-expense'); },
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _SmallMethodCard(
+                      color: AppTheme.sky,
+                      tint: AppTheme.skyTint,
+                      icon: Icons.photo_library_rounded,
+                      label: 'Galería',
+                      onTap: () => Navigator.pop(ctx, _CaptureSource.gallery),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _SmallMethodCard(
+                      color: AppTheme.error,
+                      tint: AppTheme.errorContainer,
+                      icon: Icons.picture_as_pdf_rounded,
+                      label: 'PDF',
+                      onTap: () => Navigator.pop(ctx, _CaptureSource.pdf),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         );
@@ -288,24 +355,30 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final c = context.appColors;
     return Scaffold(
-      backgroundColor: colors.surface,
+      backgroundColor: c.background,
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) => [
           SliverAppBar(
-            expandedHeight: 160,
+            expandedHeight: 180,
             floating: false,
             pinned: true,
-            backgroundColor: colors.primary,
+            backgroundColor: AppTheme.primary,
             foregroundColor: Colors.white,
             elevation: 0,
+            scrolledUnderElevation: 0,
             title: const Text(
               'Mis Gastos',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontFamily: 'Plus Jakarta Sans',
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 17,
+              ),
             ),
             flexibleSpace: FlexibleSpaceBar(
-              background: _SummaryHeader(),
+              background: _RichSummaryHeader(),
             ),
             actions: [
               if (!_isReportFinalized)
@@ -318,15 +391,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           ? const SizedBox(
                               width: 14,
                               height: 14,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white70))
-                          : const Icon(Icons.flag_outlined,
-                              size: 16, color: Colors.white70),
-                      label: const Text('Finalizar',
-                          style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600)),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70),
+                            )
+                          : const Icon(Icons.flag_outlined, size: 16, color: Colors.white70),
+                      label: const Text(
+                        'Finalizar',
+                        style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
                     );
                   },
                 ),
@@ -342,7 +413,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           right: -2, top: -2,
                           child: Container(
                             width: 8, height: 8,
-                            decoration: const BoxDecoration(color: Color(0xFF4ADE80), shape: BoxShape.circle),
+                            decoration: const BoxDecoration(
+                              color: AppTheme.yellow,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                         ),
                     ],
@@ -357,49 +431,46 @@ class _HistoryScreenState extends State<HistoryScreen> {
           builder: (context, provider, _) {
             return RefreshIndicator(
               onRefresh: _load,
-              color: colors.primary,
+              color: AppTheme.primary,
               child: CustomScrollView(
                 slivers: [
-                  // Barra de búsqueda
+                  // Search bar
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                       child: TextField(
                         controller: _searchCtrl,
                         onChanged: provider.setSearch,
+                        style: const TextStyle(fontFamily: 'Plus Jakarta Sans', fontWeight: FontWeight.w600),
                         decoration: InputDecoration(
                           hintText: 'Buscar gastos...',
-                          prefixIcon: const Icon(Icons.search_rounded),
+                          prefixIcon: Icon(Icons.search_rounded, size: 20, color: context.appColors.muted),
                           suffixIcon: _searchCtrl.text.isNotEmpty
                               ? IconButton(
                                   onPressed: () {
                                     _searchCtrl.clear();
                                     provider.setSearch('');
                                   },
-                                  icon: const Icon(Icons.clear_rounded),
+                                  icon: Icon(Icons.clear_rounded, size: 18, color: context.appColors.muted),
                                 )
                               : null,
                         ),
                       ),
                     ),
                   ),
-                  // Banner rendición finalizada
+                  // Report finalized banner
                   if (_isReportFinalized)
                     SliverToBoxAdapter(
                       child: Container(
-                        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
+                        margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFECFDF5),
-                          borderRadius: BorderRadius.circular(10),
-                          border:
-                              Border.all(color: const Color(0xFFA7F3D0)),
+                          color: AppTheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(14),
                         ),
                         child: const Row(
                           children: [
-                            Icon(Icons.lock_outline_rounded,
-                                size: 16, color: Color(0xFF047857)),
+                            Icon(Icons.lock_outline_rounded, size: 16, color: AppTheme.secondary),
                             SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -407,7 +478,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: Color(0xFF047857),
+                                  color: AppTheme.secondary,
                                 ),
                               ),
                             ),
@@ -415,42 +486,36 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ),
                       ),
                     ),
-                  // Banner tarea activa
+                  // Active task banner
                   SliverToBoxAdapter(
                     child: Consumer<AuthProvider>(
                       builder: (context, auth, _) {
                         if (auth.taskId == null) return const SizedBox.shrink();
-                        final colors = Theme.of(context).colorScheme;
                         return GestureDetector(
                           onTap: _openTaskSelection,
                           child: Container(
-                            margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 10),
+                            margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                             decoration: BoxDecoration(
-                              color: colors.primaryContainer.withOpacity(0.4),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                  color: colors.primary.withOpacity(0.3)),
+                              color: AppTheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(14),
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.task_alt_rounded,
-                                    color: colors.primary, size: 16),
+                                const Icon(Icons.task_alt_rounded, color: AppTheme.primary, size: 16),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     auth.taskName ?? 'Tarea: ${auth.taskId}',
-                                    style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: colors.primary),
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppTheme.primary,
+                                    ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                Icon(Icons.chevron_right_rounded,
-                                    size: 16,
-                                    color: colors.primary.withOpacity(0.7)),
+                                const Icon(Icons.chevron_right_rounded, size: 16, color: AppTheme.primary),
                               ],
                             ),
                           ),
@@ -458,7 +523,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       },
                     ),
                   ),
-                  // Filtros por categoría
+                  // Category filter chips
                   SliverToBoxAdapter(
                     child: SizedBox(
                       height: 44,
@@ -475,25 +540,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             (cat) => _FilterChip(
                               label: cat.label,
                               selected: provider.categoryFilter == cat,
-                              onSelected: () =>
-                                  provider.setCategoryFilter(cat),
+                              onSelected: () => provider.setCategoryFilter(cat),
+                              color: getCategoryColor(cat),
+                              bg: getCategoryBg(cat),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                  // Contenido principal
+                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                  // Main content
                   if (provider.isLoading)
                     SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (_, i) => Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 4),
-                          child: ShimmerCard(
-                              height: 80,
-                              borderRadius: BorderRadius.circular(16)),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          child: ShimmerCard(height: 80, borderRadius: BorderRadius.circular(20)),
                         ),
                         childCount: 5,
                       ),
@@ -502,9 +565,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     SliverFillRemaining(
                       child: EmptyState(
                         icon: Icons.receipt_long_outlined,
-                        title: provider.search.isNotEmpty
-                            ? 'Sin resultados'
-                            : 'No hay gastos aún',
+                        title: provider.search.isNotEmpty ? 'Sin resultados' : 'No hay gastos aún',
                         subtitle: provider.search.isNotEmpty
                             ? 'Intenta con otro término de búsqueda'
                             : 'Toca el botón + para agregar tu primer gasto',
@@ -514,25 +575,25 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 icon: const Icon(Icons.add_rounded),
                                 label: const Text('Agregar gasto'),
                                 style: ElevatedButton.styleFrom(
-                                    minimumSize: Size.zero,
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
+                                  minimumSize: Size.zero,
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                ),
                               )
                             : null,
                       ),
                     )
                   else
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate(
                           (ctx, i) {
                             final expense = provider.expenses[i];
                             return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.only(bottom: 10),
                               child: ExpenseCard(
                                 expense: expense,
-                                onTap: () =>
-                                    context.push('/expense/${expense.id}'),
+                                onTap: () => context.push('/expense/${expense.id}'),
                                 onDelete: () => _delete(expense),
                               ),
                             );
@@ -549,12 +610,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
       floatingActionButton: Consumer<AuthProvider>(
         builder: (context, auth, _) {
-          if (auth.taskId == null || _isReportFinalized) {
-            return const SizedBox.shrink();
-          }
-          return FloatingActionButton(
+          if (auth.taskId == null || _isReportFinalized) return const SizedBox.shrink();
+          return FloatingActionButton.extended(
             onPressed: _showAddOptions,
-            child: const Icon(Icons.add_rounded),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text(
+              'Nuevo gasto',
+              style: TextStyle(fontFamily: 'Plus Jakarta Sans', fontWeight: FontWeight.w700),
+            ),
           );
         },
       ),
@@ -575,43 +638,116 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 }
 
-class _SummaryHeader extends StatelessWidget {
+// ── Rich Hero Header ──────────────────────────────────────────────────────────
+
+class _RichSummaryHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Consumer<ExpenseProvider>(
-      builder: (context, provider, _) {
+    return Consumer2<AuthProvider, ExpenseProvider>(
+      builder: (context, auth, provider, _) {
+        final name = auth.user?.name?.split(' ').first ?? 'Usuario';
         return Container(
-          padding: const EdgeInsets.fromLTRB(20, 90, 20, 16),
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF1A56DB), Color(0xFF1E3A8A)],
+              colors: [Color(0xFF3B5BFF), Color(0xFF2F49D9)],
             ),
           ),
-          child: Row(
+          child: Stack(
             children: [
-              _StatItem(
-                label: 'Este mes',
-                value: Formatters.currency(provider.monthAmount),
+              // Deco circle top-right
+              Positioned(
+                top: -40,
+                right: -50,
+                child: Container(
+                  width: 180,
+                  height: 180,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0x2EFFD66B),
+                  ),
+                ),
               ),
-              Container(
-                  width: 1,
-                  height: 36,
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  color: Colors.white.withOpacity(0.3)),
-              _StatItem(
-                label: 'Total registrado',
-                value: Formatters.currency(provider.totalAmount),
+              // Deco square
+              Positioned(
+                bottom: 50,
+                right: 90,
+                child: Transform.rotate(
+                  angle: 0.35,
+                  child: Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: const Color(0x4D7FB3FF),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
               ),
-              Container(
-                  width: 1,
-                  height: 36,
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  color: Colors.white.withOpacity(0.3)),
-              _StatItem(
-                label: 'Gastos',
-                value: provider.expenses.length.toString(),
+              SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 48, 20, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Hola, $name 👋',
+                        style: TextStyle(
+                          fontFamily: 'Plus Jakarta Sans',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        Formatters.currency(provider.monthAmount),
+                        style: const TextStyle(
+                          fontFamily: 'Plus Jakarta Sans',
+                          fontSize: 36,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: -1,
+                          height: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Text(
+                            '${provider.expenses.length} gastos',
+                            style: TextStyle(
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontSize: 13,
+                              color: Colors.white.withOpacity(0.85),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 8),
+                            width: 3,
+                            height: 3,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withOpacity(0.5),
+                            ),
+                          ),
+                          Text(
+                            'este mes',
+                            style: TextStyle(
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontSize: 13,
+                              color: Colors.white.withOpacity(0.75),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -621,63 +757,229 @@ class _SummaryHeader extends StatelessWidget {
   }
 }
 
-class _StatItem extends StatelessWidget {
-  final String label;
-  final String value;
-  const _StatItem({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(label,
-            style: TextStyle(
-                fontSize: 11,
-                color: Colors.white.withOpacity(0.7),
-                fontWeight: FontWeight.w500)),
-        const SizedBox(height: 2),
-        Text(value,
-            style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Colors.white)),
-      ],
-    );
-  }
-}
+// ── Filter Chip ───────────────────────────────────────────────────────────────
 
 class _FilterChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onSelected;
+  final Color? color;
+  final Color? bg;
 
-  const _FilterChip(
-      {required this.label,
-      required this.selected,
-      required this.onSelected});
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+    this.color,
+    this.bg,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final activeColor = color ?? AppTheme.primary;
+    final activeBg = bg ?? AppTheme.primaryContainer;
+    final c = context.appColors;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => onSelected(),
-        selectedColor: colors.primaryContainer,
-        checkmarkColor: colors.primary,
-        labelStyle: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          color: selected ? colors.primary : colors.onSurface,
+      child: GestureDetector(
+        onTap: onSelected,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? activeBg : c.surface,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected ? activeColor.withOpacity(0.4) : c.line,
+              width: 1.5,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Plus Jakarta Sans',
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: selected ? activeColor : c.muted,
+            ),
+          ),
         ),
       ),
     );
   }
 }
+
+// ── Method Cards ──────────────────────────────────────────────────────────────
+
+class _MethodCard extends StatelessWidget {
+  final Color color;
+  final Color tint;
+  final IconData icon;
+  final String title;
+  final String desc;
+  final String? badge;
+  final VoidCallback onTap;
+
+  const _MethodCard({
+    required this.color,
+    required this.tint,
+    required this.icon,
+    required this.title,
+    required this.desc,
+    required this.onTap,
+    this.badge,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? c.surfaceTinted : tint;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: c.surface,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x0F0E1330),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: TextStyle(
+                            fontFamily: 'Plus Jakarta Sans',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: c.ink,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ),
+                      if (badge != null) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppTheme.yellow,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            badge!,
+                            style: const TextStyle(
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1E1B02),
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    desc,
+                    style: TextStyle(
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontSize: 12,
+                      color: c.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 18),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SmallMethodCard extends StatelessWidget {
+  final Color color;
+  final Color tint;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _SmallMethodCard({
+    required this.color,
+    required this.tint,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? context.appColors.surfaceTinted : tint;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Plus Jakarta Sans',
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── OCR Result Sheet ──────────────────────────────────────────────────────────
 
 class _OcrResultSheet extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -695,6 +997,7 @@ class _OcrResultSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final maxH = MediaQuery.of(context).size.height * 0.88;
+    final c = context.appColors;
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: maxH),
       child: Column(
@@ -702,49 +1005,75 @@ class _OcrResultSheet extends StatelessWidget {
         children: [
           Container(
             margin: const EdgeInsets.only(top: 12),
-            width: 36, height: 4,
-            decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)),
+            width: 44, height: 5,
+            decoration: BoxDecoration(color: c.line, borderRadius: BorderRadius.circular(3)),
           ),
           Flexible(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               shrinkWrap: true,
               children: [
-                const CircleAvatar(
-                  radius: 28, backgroundColor: Color(0xFFECFDF5),
-                  child: Icon(Icons.check_rounded, color: Color(0xFF059669), size: 28),
+                Container(
+                  width: 56, height: 56,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppTheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: const Icon(Icons.check_rounded, color: AppTheme.secondary, size: 28),
                 ),
                 const SizedBox(height: 12),
-                const Center(child: Text('Comprobante procesado',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF111827)))),
+                Center(
+                  child: Text(
+                    'Comprobante procesado',
+                    style: TextStyle(
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: c.ink,
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 4),
-                const Center(child: Text('Revisa los datos y confirma para continuar',
-                    style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)))),
+                Center(
+                  child: Text(
+                    'Revisa los datos y confirma para continuar',
+                    style: TextStyle(fontSize: 14, color: c.muted),
+                  ),
+                ),
                 const SizedBox(height: 20),
                 if (data['total'] != null)
                   Container(
                     padding: const EdgeInsets.all(20),
                     margin: const EdgeInsets.only(bottom: 14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF0FDF4),
+                      color: AppTheme.secondaryContainer,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFBBF7D0)),
                     ),
                     child: Column(children: [
-                      const Text('Total detectado', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF065F46))),
+                      const Text(
+                        'Total detectado',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.secondary),
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         '${_moneda(data['currencyCode'] as String?)} ${((data['total'] as num?) ?? 0).toStringAsFixed(2)}',
-                        style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: Color(0xFF059669)),
+                        style: const TextStyle(
+                          fontFamily: 'Plus Jakarta Sans',
+                          fontSize: 32,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.secondary,
+                          letterSpacing: -0.8,
+                        ),
                       ),
                     ]),
                   ),
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                    color: c.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: AppTheme.cardShadow,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -760,9 +1089,9 @@ class _OcrResultSheet extends StatelessWidget {
               ],
             ),
           ),
-          Container(
+          Builder(builder: (ctx) => Container(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE5E7EB)))),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: ctx.appColors.line))),
             child: Row(children: [
               Expanded(
                 child: OutlinedButton.icon(
@@ -778,15 +1107,14 @@ class _OcrResultSheet extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: onConfirm,
                   icon: const Icon(Icons.check_circle_rounded, size: 20),
-                  label: const Text('Continuar', style: TextStyle(fontWeight: FontWeight.w700)),
+                  label: const Text('Continuar'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4F46E5),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
               ),
             ]),
-          ),
+          )),
         ],
       ),
     );
@@ -800,67 +1128,39 @@ class _ResultField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.appColors;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF9CA3AF), letterSpacing: 0.5)),
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontFamily: 'Plus Jakarta Sans',
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: c.muted,
+              letterSpacing: 0.5,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF111827))),
+          Text(
+            value,
+            style: TextStyle(
+              fontFamily: 'Plus Jakarta Sans',
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: c.ink,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _AddOption extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String label;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _AddOption({required this.icon, required this.color, required this.label, required this.subtitle, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.25)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
-                  Text(subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-                ],
-              ),
-            ),
-            Icon(Icons.arrow_forward_ios_rounded, size: 14, color: color.withOpacity(0.6)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-enum _CaptureSource { camera, gallery, pdf }
+// ── Finalize Dialog ───────────────────────────────────────────────────────────
 
 class _FinalizeDialog extends StatelessWidget {
   final List<ExpenseModel> expenses;
@@ -870,11 +1170,11 @@ class _FinalizeDialog extends StatelessWidget {
 
   Color _catColor(ExpenseCategory cat) {
     switch (cat) {
-      case ExpenseCategory.alimentacion: return const Color(0xFFF87171);
-      case ExpenseCategory.transporte:   return const Color(0xFF60A5FA);
-      case ExpenseCategory.alojamiento:  return const Color(0xFFA78BFA);
-      case ExpenseCategory.compras:      return const Color(0xFFFBBF24);
-      case ExpenseCategory.otros:        return const Color(0xFF9CA3AF);
+      case ExpenseCategory.alimentacion: return AppTheme.coral;
+      case ExpenseCategory.transporte:   return AppTheme.sky;
+      case ExpenseCategory.alojamiento:  return AppTheme.violet;
+      case ExpenseCategory.compras:      return AppTheme.mint;
+      case ExpenseCategory.otros:        return AppTheme.primary;
     }
   }
 
@@ -886,6 +1186,7 @@ class _FinalizeDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.appColors;
     final byCurrency = <String, double>{};
     final byCat = <ExpenseCategory, Map<String, double>>{};
     for (final e in expenses) {
@@ -899,9 +1200,12 @@ class _FinalizeDialog extends StatelessWidget {
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: ConstrainedBox(
+      child: Builder(
+        builder: (ctx) {
+          final c = ctx.appColors;
+          return ConstrainedBox(
         constraints: BoxConstraints(maxHeight: screenHeight * 0.82),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -914,51 +1218,69 @@ class _FinalizeDialog extends StatelessWidget {
                     Container(
                       width: 56, height: 56,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFECFDF5),
+                        color: AppTheme.secondaryContainer,
                         borderRadius: BorderRadius.circular(28),
                       ),
-                      child: const Icon(Icons.shield_outlined, size: 28, color: Color(0xFF059669)),
+                      child: const Icon(Icons.shield_outlined, size: 28, color: AppTheme.secondary),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
+                    Text(
                       'Finalizar rendición',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111827)),
+                      style: TextStyle(
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: c.ink,
+                      ),
                     ),
                     const SizedBox(height: 16),
-
                     if (expenses.isNotEmpty) ...[
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF9FAFB),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                          color: c.background,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: c.line),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('RESUMEN',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                                    color: Color(0xFF9CA3AF), letterSpacing: 0.5)),
+                            Text(
+                              'RESUMEN',
+                              style: TextStyle(
+                                fontFamily: 'Plus Jakarta Sans',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: c.muted,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
                             const SizedBox(height: 10),
                             ...byCurrency.entries.map((entry) => Padding(
                               padding: const EdgeInsets.only(bottom: 4),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text('Gastado (${entry.key})',
-                                      style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-                                  Text(Formatters.currency(entry.value, currency: entry.key),
-                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                                          color: Color(0xFFDC2626))),
+                                  Text('Gastado (${entry.key})', style: TextStyle(fontSize: 13, color: c.muted)),
+                                  Text(
+                                    Formatters.currency(entry.value, currency: entry.key),
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.error),
+                                  ),
                                 ],
                               ),
                             )),
-                            const Divider(color: Color(0xFFE5E7EB), height: 20),
-                            const Text('POR CATEGORÍA',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                                    color: Color(0xFF9CA3AF), letterSpacing: 0.5)),
+                            Divider(color: c.line, height: 20),
+                            Text(
+                              'POR CATEGORÍA',
+                              style: TextStyle(
+                                fontFamily: 'Plus Jakarta Sans',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: c.muted,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
                             const SizedBox(height: 10),
                             ...byCat.entries.expand((catEntry) => catEntry.value.entries.map((currEntry) =>
                               Padding(
@@ -974,13 +1296,11 @@ class _FinalizeDialog extends StatelessWidget {
                                       ),
                                     ),
                                     Expanded(
-                                      child: Text(catEntry.key.label,
-                                          style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+                                      child: Text(catEntry.key.label, style: TextStyle(fontSize: 13, color: c.muted)),
                                     ),
                                     Text(
                                       Formatters.currency(currEntry.value, currency: currEntry.key),
-                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                                          color: Color(0xFF111827)),
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: c.ink),
                                     ),
                                   ],
                                 ),
@@ -991,35 +1311,32 @@ class _FinalizeDialog extends StatelessWidget {
                       ),
                       const SizedBox(height: 14),
                     ],
-
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF0FDF4),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFBBF7D0)),
+                        color: AppTheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(14),
                       ),
                       child: Text.rich(
                         TextSpan(
-                          style: const TextStyle(
-                              fontSize: 14, color: Color(0xFF374151),
-                              fontStyle: FontStyle.italic, height: 1.57),
+                          style: TextStyle(
+                            fontFamily: 'Plus Jakarta Sans',
+                            fontSize: 14,
+                            color: c.ink2,
+                            fontStyle: FontStyle.italic,
+                            height: 1.5,
+                          ),
                           children: [
                             const TextSpan(text: 'yo '),
                             TextSpan(
                               text: userName,
-                              style: const TextStyle(fontWeight: FontWeight.w700,
-                                  fontStyle: FontStyle.normal, color: Color(0xFF065F46)),
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontStyle: FontStyle.normal, color: AppTheme.secondary),
                             ),
-                            const TextSpan(
-                              text: ' En fe de la verdad firmo la presente Declaración Jurada'
-                                  ' que todos los datos son veraces ',
-                            ),
+                            const TextSpan(text: ' En fe de la verdad firmo la presente Declaración Jurada que todos los datos son veraces '),
                             TextSpan(
                               text: dateStr,
-                              style: const TextStyle(fontWeight: FontWeight.w700,
-                                  fontStyle: FontStyle.normal, color: Color(0xFF065F46)),
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontStyle: FontStyle.normal, color: AppTheme.secondary),
                             ),
                             const TextSpan(text: '.'),
                           ],
@@ -1027,42 +1344,35 @@ class _FinalizeDialog extends StatelessWidget {
                         textAlign: TextAlign.center,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
+                    const SizedBox(height: 14),
+                    Text(
                       'Una vez finalizada, no podrás agregar más gastos a esta tarea.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                      style: TextStyle(fontSize: 13, color: c.muted),
                     ),
-                    const SizedBox(height: 8),
                   ],
                 ),
               ),
             ),
             Container(
               padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: Color(0xFFF3F4F6))),
-              ),
+              decoration: BoxDecoration(border: Border(top: BorderSide(color: c.line))),
               child: Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
                       child: const Text('Cancelar'),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton(
-                      onPressed: () => Navigator.pop(context, true),
+                      onPressed: () => Navigator.pop(ctx, true),
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF059669),
+                        backgroundColor: AppTheme.secondary,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       child: const Text('Confirmar'),
                     ),
@@ -1072,7 +1382,11 @@ class _FinalizeDialog extends StatelessWidget {
             ),
           ],
         ),
+      );
+        },
       ),
     );
   }
 }
+
+enum _CaptureSource { camera, gallery, pdf }
