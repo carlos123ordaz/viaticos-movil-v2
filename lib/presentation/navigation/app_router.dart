@@ -6,6 +6,7 @@ import '../screens/expenses/add_expense_screen.dart';
 import '../screens/expenses/capture_screen.dart';
 import '../screens/expenses/edit_expense_screen.dart';
 import '../screens/expenses/expense_detail_screen.dart';
+import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/expenses/history_screen.dart';
 import '../screens/expenses/voice_expense_screen.dart';
 import '../screens/profile/change_password_screen.dart';
@@ -34,6 +35,7 @@ GoRouter buildRouter() {
         builder: (context, state, child) => HomeScaffold(child: child),
         routes: [
           GoRoute(path: '/home', builder: (_, __) => const HistoryScreen()),
+          GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
           GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
         ],
       ),

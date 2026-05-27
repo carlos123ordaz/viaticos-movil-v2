@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/expense_provider.dart';
 import '../../providers/theme_provider.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -46,20 +45,6 @@ class ProfileScreen extends StatelessWidget {
             ],
             flexibleSpace: FlexibleSpaceBar(
               background: _ProfileHero(user: user),
-            ),
-          ),
-
-          // ── Floating stats card ───────────────────────────
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: c.surface,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: AppTheme.cardShadow,
-              ),
-              child: _StatsRow(),
             ),
           ),
 
@@ -365,76 +350,6 @@ class _ProfileHero extends StatelessWidget {
                   ),
                 ],
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Stats row ─────────────────────────────────────────────────────────────────
-
-class _StatsRow extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<ExpenseProvider>();
-    final c = context.appColors;
-    return Row(
-      children: [
-        _StatItem(
-          label: 'Total gastos',
-          value: provider.expenses.length.toString(),
-          color: AppTheme.primary,
-        ),
-        Container(width: 1, height: 36, color: c.line),
-        _StatItem(
-          label: 'Este mes',
-          value: Formatters.currency(provider.monthAmount),
-          color: AppTheme.secondary,
-        ),
-        Container(width: 1, height: 36, color: c.line),
-        _StatItem(
-          label: 'Aprobación',
-          value: '—',
-          color: AppTheme.warn,
-        ),
-      ],
-    );
-  }
-}
-
-class _StatItem extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  const _StatItem({required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.appColors;
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'Plus Jakarta Sans',
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: c.muted,
-              letterSpacing: 0.3,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontFamily: 'Plus Jakarta Sans',
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: color,
-              letterSpacing: -0.3,
             ),
           ),
         ],

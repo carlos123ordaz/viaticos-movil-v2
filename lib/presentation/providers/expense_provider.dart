@@ -14,6 +14,8 @@ class ExpenseProvider extends ChangeNotifier {
 
   ExpenseProvider(this._service);
 
+  List<ExpenseModel> get allExpenses => List<ExpenseModel>.from(_expenses);
+
   List<ExpenseModel> get expenses {
     var list = List<ExpenseModel>.from(_expenses);
     if (_categoryFilter != null) {

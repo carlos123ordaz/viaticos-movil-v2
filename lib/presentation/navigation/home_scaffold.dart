@@ -8,7 +8,8 @@ class HomeScaffold extends StatelessWidget {
 
   int _selectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
-    if (location.startsWith('/profile')) return 1;
+    if (location.startsWith('/dashboard')) return 1;
+    if (location.startsWith('/profile')) return 2;
     return 0;
   }
 
@@ -27,7 +28,8 @@ class HomeScaffold extends StatelessWidget {
           selectedIndex: idx,
           onDestinationSelected: (i) {
             if (i == 0) context.go('/home');
-            if (i == 1) context.go('/profile');
+            if (i == 1) context.go('/dashboard');
+            if (i == 2) context.go('/profile');
           },
           elevation: 0,
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
@@ -36,6 +38,11 @@ class HomeScaffold extends StatelessWidget {
               icon: Icon(Icons.receipt_long_outlined),
               selectedIcon: Icon(Icons.receipt_long_rounded),
               label: 'Gastos',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.insert_chart_outlined_rounded),
+              selectedIcon: Icon(Icons.insert_chart_rounded),
+              label: 'Dashboard',
             ),
             NavigationDestination(
               icon: Icon(Icons.person_outline_rounded),
