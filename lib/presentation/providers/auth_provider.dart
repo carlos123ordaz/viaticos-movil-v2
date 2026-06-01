@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/models/user_model.dart';
+import '../../data/services/api_service.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/storage_service.dart';
 import '../../data/services/user_service.dart';
@@ -16,7 +17,15 @@ class AuthProvider extends ChangeNotifier {
   String? _error;
   String? _taskId;
 
-  AuthProvider(this._authService, this._userService, this._storage);
+  AuthProvider(this._authService, this._userService, this._storage, ApiService api) {
+    api.onSessionExpired = () {
+      _user = null;
+      _taskId = null;
+      _taskName = null;
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+    };
+  }
 
   String? _taskName;
 

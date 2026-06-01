@@ -118,13 +118,14 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
+    return SingleChildScrollView(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
               width: 96,
               height: 96,
               decoration: BoxDecoration(
@@ -158,6 +159,7 @@ class EmptyState extends StatelessWidget {
               action!,
             ],
           ],
+          ),
         ),
       ),
     );

@@ -244,7 +244,7 @@ class _TaskCard extends StatelessWidget {
                             child: Text(
                               task.responsible!,
                               style: TextStyle(
-                                  fontSize: 12, color: colors.outline),
+                                  fontSize: 12, color: colors.onSurfaceVariant),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -256,12 +256,12 @@ class _TaskCard extends StatelessWidget {
                       Row(
                         children: [
                           Icon(Icons.schedule_rounded,
-                              size: 13, color: colors.outline),
+                              size: 13, color: colors.onSurfaceVariant),
                           const SizedBox(width: 4),
                           Text(
                             '${task.deadline!.day.toString().padLeft(2, '0')}/${task.deadline!.month.toString().padLeft(2, '0')}/${task.deadline!.year}',
                             style: TextStyle(
-                                fontSize: 12, color: colors.outline),
+                                fontSize: 12, color: colors.onSurfaceVariant),
                           ),
                         ],
                       ),

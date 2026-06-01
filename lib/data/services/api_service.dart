@@ -1,10 +1,12 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../core/constants/api_constants.dart';
 import 'storage_service.dart';
 
 class ApiService {
   late final Dio _dio;
   final StorageService _storage;
+  VoidCallback? onSessionExpired;
 
   ApiService(this._storage) {
     _dio = Dio(BaseOptions(
@@ -57,6 +59,7 @@ class ApiService {
       return true;
     } catch (_) {
       await _storage.clear();
+      onSessionExpired?.call();
       return false;
     }
   }

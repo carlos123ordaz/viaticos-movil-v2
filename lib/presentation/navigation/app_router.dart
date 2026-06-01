@@ -15,9 +15,10 @@ import '../screens/profile/signature_screen.dart';
 import '../screens/splash_screen.dart';
 import 'home_scaffold.dart';
 
-GoRouter buildRouter() {
+GoRouter buildRouter(AuthProvider authProvider) {
   return GoRouter(
     initialLocation: '/splash',
+    refreshListenable: authProvider,
     redirect: (context, state) {
       final auth = context.read<AuthProvider>();
       final isAuth = auth.isAuthenticated;

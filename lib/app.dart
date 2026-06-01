@@ -49,10 +49,10 @@ class _ViaticosAppState extends State<ViaticosApp> {
     _signatureService = SignatureService(_api);
     _bitrixTaskService = BitrixTaskService(_api);
     _expenseReportService = ExpenseReportService(_api, _bitrixTaskService);
-    _authProvider = AuthProvider(_authService, _userService, widget.storage);
+    _authProvider = AuthProvider(_authService, _userService, widget.storage, _api);
     _expenseProvider = ExpenseProvider(_expenseService);
     _themeProvider = ThemeProvider();
-    _router = buildRouter();
+    _router = buildRouter(_authProvider);
   }
 
   @override
