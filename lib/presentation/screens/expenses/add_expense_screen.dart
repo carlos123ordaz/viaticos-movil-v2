@@ -16,9 +16,9 @@ import 'cost_center_allocation_screen.dart';
 import 'task_selection_screen.dart';
 
 const _kStepTitles = [
-  '¿Qué tipo de gasto es?',
+  '¿Qué tipo de rendición es?',
   'Datos del proveedor',
-  'Montos del gasto',
+  'Montos de la rendición',
   'Tipo de comprobante',
   'Detalle y respaldo',
 ];
@@ -27,7 +27,7 @@ const _kStepSubtitles = [
   'Elige el tipo y la tarea Bitrix asociada.',
   'Busca por RUC y completamos los datos.',
   'Ingresa el total. El IGV se calcula automáticamente.',
-  'Define qué documento sustenta el gasto.',
+  'Define qué documento sustenta la rendición.',
   'Agrega descripción, comprobante y centros de costo.',
 ];
 
@@ -244,12 +244,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   bool _validateStep(int step) {
     switch (step) {
       case 0:
-        if (context.read<AuthProvider>().taskId == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Debes seleccionar una tarea antes de continuar')),
-          );
-          return false;
-        }
         return true;
       case 2:
         final total = double.tryParse(_totalCtrl.text.replaceAll(',', '.'));
@@ -362,10 +356,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     setState(() => _saving = false);
     if (expense != null) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Gasto registrado correctamente')));
+          .showSnackBar(const SnackBar(content: Text('Rendición registrada correctamente')));
       context.pop();
     } else {
-      final errorMsg = provider.createError ?? 'Error al guardar el gasto';
+      final errorMsg = provider.createError ?? 'Error al guardar la rendición';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(errorMsg),
@@ -562,7 +556,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                       children: [
                                         Icon(Icons.check_rounded, size: 18),
                                         SizedBox(width: 6),
-                                        Text('Crear gasto',
+                                        Text('Crear rendición',
                                             style: TextStyle(
                                                 fontSize: 15,
                                                 fontWeight: FontWeight.w700)),
@@ -586,7 +580,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _FieldLabel('Tipo de gasto'),
+        const _FieldLabel('Tipo de rendición'),
         const SizedBox(height: 10),
         _TypeToggle(type: _type, onChanged: _setType),
         const SizedBox(height: 24),
@@ -597,20 +591,20 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: AppTheme.warnTint,
+            color: const Color(0xFFEAF4FF),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppTheme.warn.withOpacity(0.4)),
+            border: Border.all(color: const Color(0xFF2196F3).withOpacity(0.4)),
           ),
           child: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, size: 16, color: AppTheme.warn),
+              const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF1565C0)),
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
-                  'Seleccionar una tarea Bitrix es obligatorio para registrar un gasto.',
+                  'La tarea Bitrix es opcional. Puedes registrar una rendición sin asignar una tarea.',
                   style: TextStyle(
                       fontSize: 12,
-                      color: Color(0xFF7A4A10),
+                      color: Color(0xFF1565C0),
                       fontWeight: FontWeight.w500),
                 ),
               ),
@@ -1001,7 +995,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           controller: _descripCtrl,
           maxLines: 4,
           decoration: const InputDecoration(
-            hintText: 'Descripción general del gasto...',
+            hintText: 'Descripción general de la rendición...',
           ),
           validator: (v) =>
               (v == null || v.trim().isEmpty) ? 'La descripción es obligatoria' : null,
@@ -1128,7 +1122,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
                                 color: c.ink)),
-                        Text('Requerido para registrar el gasto',
+                        Text('Requerido para registrar la rendición',
                             style: TextStyle(fontSize: 11, color: c.muted)),
                       ],
                     ),

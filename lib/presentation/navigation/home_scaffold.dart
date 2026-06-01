@@ -37,7 +37,7 @@ class HomeScaffold extends StatelessWidget {
             NavigationDestination(
               icon: Icon(Icons.receipt_long_outlined),
               selectedIcon: Icon(Icons.receipt_long_rounded),
-              label: 'Gastos',
+              label: 'Rendiciones',
             ),
             NavigationDestination(
               icon: Icon(Icons.insert_chart_outlined_rounded),

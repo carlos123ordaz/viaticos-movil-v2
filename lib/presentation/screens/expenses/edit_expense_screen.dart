@@ -178,11 +178,11 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     if (!mounted) return;
     setState(() => _saving = false);
     if (updated != null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gasto actualizado')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rendición actualizada')));
       context.pop();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: const Text('Error al actualizar el gasto'), backgroundColor: Theme.of(context).colorScheme.error),
+        SnackBar(content: const Text('Error al actualizar la rendición'), backgroundColor: Theme.of(context).colorScheme.error),
       );
     }
   }
@@ -208,7 +208,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Editar gasto'),
+        title: const Text('Editar rendición'),
         actions: [
           TextButton(
             onPressed: _loadingData || _saving ? null : _submit,
@@ -225,7 +225,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  _SectionHeader('Tipo de gasto'),
+                  _SectionHeader('Tipo de rendición'),
                   const SizedBox(height: 10),
                   _TypeToggle(type: _type, onChanged: _setType),
                   const SizedBox(height: 24),
@@ -370,7 +370,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                   TextFormField(
                     controller: _descripCtrl,
                     maxLines: 3,
-                    decoration: const InputDecoration(hintText: 'Descripción general del gasto...', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(hintText: 'Descripción general de la rendición...', border: OutlineInputBorder()),
                   ),
                   const SizedBox(height: 24),
 

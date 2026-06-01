@@ -12,7 +12,57 @@ class ExpenseProvider extends ChangeNotifier {
   String _search = '';
   ExpenseCategory? _categoryFilter;
 
+  // Multi-select state
+  bool _isSelectionMode = false;
+  final Set<String> _selectedIds = {};
+
   ExpenseProvider(this._service);
+
+  bool get isSelectionMode => _isSelectionMode;
+  Set<String> get selectedIds => Set.unmodifiable(_selectedIds);
+  int get selectedCount => _selectedIds.length;
+
+  void enterSelectionMode(String firstId) {
+    _isSelectionMode = true;
+    _selectedIds.clear();
+    _selectedIds.add(firstId);
+    notifyListeners();
+  }
+
+  void toggleSelection(String id) {
+    if (_selectedIds.contains(id)) {
+      _selectedIds.remove(id);
+      if (_selectedIds.isEmpty) _isSelectionMode = false;
+    } else {
+      _selectedIds.add(id);
+    }
+    notifyListeners();
+  }
+
+  void selectAll(List<String> ids) {
+    _selectedIds.addAll(ids);
+    notifyListeners();
+  }
+
+  void exitSelectionMode() {
+    _isSelectionMode = false;
+    _selectedIds.clear();
+    notifyListeners();
+  }
+
+  Future<bool> assignTask(String taskId) async {
+    if (_selectedIds.isEmpty) return false;
+    try {
+      await _service.assignTaskToExpenses(_selectedIds.toList(), taskId);
+      // Remove assigned expenses from the current list — they now belong to a task
+      _expenses.removeWhere((e) => _selectedIds.contains(e.id));
+      exitSelectionMode();
+      return true;
+    } catch (e) {
+      debugPrint('Error assigning task: $e');
+      return false;
+    }
+  }
 
   List<ExpenseModel> get allExpenses => List<ExpenseModel>.from(_expenses);
 
@@ -59,20 +109,14 @@ class ExpenseProvider extends ChangeNotifier {
   }
 
   Future<void> load({String? taskId}) async {
-    if (taskId == null) {
-      _expenses = [];
-      _error = null;
-      _isLoading = false;
-      notifyListeners();
-      return;
-    }
+    _expenses = [];
     _isLoading = true;
     _error = null;
     notifyListeners();
     try {
       _expenses = await _service.getExpenses(taskId: taskId);
     } catch (e) {
-      _error = 'No se pudieron cargar los gastos';
+      _error = 'No se pudieron cargar las rendiciones';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -94,7 +138,7 @@ class ExpenseProvider extends ChangeNotifier {
       if (e is DioException) {
         debugPrint('Server response: ${e.response?.data}');
         final serverMsg = _extractServerMessage(e.response?.data);
-        _createError = serverMsg ?? 'Error al guardar el gasto (${e.response?.statusCode})';
+        _createError = serverMsg ?? 'Error al guardar la rendición (${e.response?.statusCode})';
       } else {
         _createError = 'Error inesperado: $e';
       }
@@ -119,7 +163,7 @@ class ExpenseProvider extends ChangeNotifier {
       notifyListeners();
       return updated;
     } catch (e) {
-      _error = 'Error al actualizar el gasto';
+      _error = 'Error al actualizar la rendición';
       notifyListeners();
       return null;
     }
@@ -132,7 +176,7 @@ class ExpenseProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = 'Error al eliminar el gasto';
+      _error = 'Error al eliminar la rendición';
       notifyListeners();
       return false;
     }

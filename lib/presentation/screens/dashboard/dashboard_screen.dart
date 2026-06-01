@@ -2,7 +2,6 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -12,8 +11,23 @@ import '../../providers/expense_provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  String _currency = 'PEN';
+
+  static String _symbol(String? currency) {
+    switch (currency) {
+      case 'USD': return '\$';
+      case 'EUR': return '€';
+      default: return 'S/';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,12 +35,17 @@ class DashboardScreen extends StatelessWidget {
     final provider = context.watch<ExpenseProvider>();
     final all = provider.allExpenses;
 
+    // Gastos filtrados por moneda seleccionada
+    final filtered = all.where((e) => e.currency == _currency).toList();
+
+    final sym = _symbol(_currency);
+
     return Scaffold(
       backgroundColor: c.background,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
-            SliverToBoxAdapter(child: _DashHeader(expenses: all)),
+            SliverToBoxAdapter(child: _DashHeader(expenses: filtered, currencySymbol: sym)),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
               sliver: SliverList(
@@ -39,18 +58,28 @@ class DashboardScreen extends StatelessWidget {
                   else if (all.isEmpty)
                     _EmptyDash(c: c)
                   else ...[
-                    const SizedBox(height: 20),
-                    _StatsRow(expenses: all),
+                    const SizedBox(height: 16),
+                    // ── Estadísticas de moneda ────────────────────────────
+                    _CurrencyStats(
+                      allExpenses: all,
+                      selected: _currency,
+                      onChanged: (v) => setState(() => _currency = v),
+                    ),
+
+                    const SizedBox(height: 16),
+                    _StatsRow(expenses: filtered, currencySymbol: sym),
                     const SizedBox(height: 24),
-                    _MonthlyChart(expenses: all),
+                    _MonthlyChart(expenses: filtered),
                     const SizedBox(height: 24),
-                    _CategoryBreakdown(expenses: all),
+                    _CategoryBreakdown(expenses: filtered, currencySymbol: sym),
                     const SizedBox(height: 24),
-                    _TypeBreakdown(expenses: all),
+                    _TypeBreakdown(expenses: filtered, currencySymbol: sym),
                     const SizedBox(height: 24),
-                    _TopProviders(expenses: all),
+                    _TopProviders(expenses: filtered, currencySymbol: sym),
                     const SizedBox(height: 24),
-                    _RecentExpenses(expenses: all),
+                    _ReceiptTypeBreakdown(expenses: filtered, currencySymbol: sym),
+                    const SizedBox(height: 24),
+                    _CostCenterBreakdown(expenses: filtered, currencySymbol: sym),
                   ],
                 ]),
               ),
@@ -62,20 +91,177 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
+// ── Currency stats cards ──────────────────────────────────────────────────────
+
+class _CurrencyStats extends StatelessWidget {
+  final List<ExpenseModel> allExpenses;
+  final String selected;
+  final ValueChanged<String> onChanged;
+
+  const _CurrencyStats({
+    required this.allExpenses,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  static const _currencyMeta = {
+    'PEN': (label: 'Soles',   symbol: 'S/',  color: AppTheme.primary),
+    'USD': (label: 'Dólares', symbol: '\$',   color: AppTheme.mint),
+    'EUR': (label: 'Euros',   symbol: '€',    color: AppTheme.violet),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+    final fmt = NumberFormat('#,##0.00', 'es_PE');
+
+    // Always show all 3 currencies, filling with zeros when no data
+    final map = <String, _CurrencyStat>{};
+    for (final cur in _currencyMeta.keys) {
+      map[cur] = _CurrencyStat(currency: cur, total: 0, count: 0);
+    }
+    for (final e in allExpenses) {
+      final cur = e.currency;
+      final prev = map[cur] ?? _CurrencyStat(currency: cur, total: 0, count: 0);
+      map[cur] = _CurrencyStat(currency: cur, total: prev.total + e.amount, count: prev.count + 1);
+    }
+
+    // Fixed order: PEN, USD, EUR
+    final stats = _currencyMeta.keys.map((k) => map[k]!).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Moneda',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: c.ink)),
+        const SizedBox(height: 10),
+        Row(
+          children: stats.asMap().entries.map((entry) {
+            final i = entry.key;
+            final stat = entry.value;
+            final isSelected = stat.currency == selected;
+            final meta = _currencyMeta[stat.currency]!;
+            final color = meta.color;
+            final symbol = meta.symbol;
+            final label = meta.label;
+            final isEmpty = stat.count == 0;
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(right: i < stats.length - 1 ? 10 : 0),
+                child: GestureDetector(
+                  onTap: isSelected ? null : () => onChanged(stat.currency),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? color
+                          : isEmpty
+                              ? c.surfaceTinted
+                              : c.surface,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: isEmpty
+                            ? c.line
+                            : isSelected
+                                ? color
+                                : color.withOpacity(0.3),
+                        width: 1.5,
+                      ),
+                      boxShadow: isSelected
+                          ? [BoxShadow(color: color.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4))]
+                          : isEmpty
+                              ? []
+                              : AppTheme.cardShadow,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(symbol,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: isSelected ? Colors.white70 : isEmpty ? c.muted2 : color,
+                                )),
+                            const SizedBox(width: 4),
+                            Text(stat.currency,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: isSelected ? Colors.white60 : c.muted,
+                                )),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.white.withOpacity(0.2)
+                                    : isEmpty
+                                        ? c.line
+                                        : color.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text('${stat.count}',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: isSelected ? Colors.white : isEmpty ? c.muted : color,
+                                  )),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          isEmpty ? '—' : fmt.format(stat.total),
+                          style: TextStyle(
+                            fontFamily: 'Plus Jakarta Sans',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: isSelected ? Colors.white : isEmpty ? c.muted2 : c.ink,
+                            letterSpacing: -0.4,
+                          ),
+                        ),
+                        Text(label,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: isSelected ? Colors.white70 : c.muted,
+                            )),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _CurrencyStat {
+  final String currency;
+  final double total;
+  final int count;
+  const _CurrencyStat({required this.currency, required this.total, required this.count});
+}
+
 // ── Header ────────────────────────────────────────────────────────────────────
 
 class _DashHeader extends StatelessWidget {
   final List<ExpenseModel> expenses;
-  const _DashHeader({required this.expenses});
+  final String currencySymbol;
+  const _DashHeader({required this.expenses, required this.currencySymbol});
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final penMonth = expenses
-        .where((e) =>
-            e.date.month == now.month &&
-            e.date.year == now.year &&
-            e.currency == 'PEN')
+    final monthTotal = expenses
+        .where((e) => e.date.month == now.month && e.date.year == now.year)
         .fold(0.0, (s, e) => s + e.amount);
     final monthCount = expenses
         .where((e) => e.date.month == now.month && e.date.year == now.year)
@@ -138,9 +324,9 @@ class _DashHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 22),
-          const Text(
-            'TOTAL ESTE MES (S/)',
-            style: TextStyle(
+          Text(
+            'TOTAL ESTE MES ($currencySymbol)',
+            style: const TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
               color: Colors.white60,
@@ -149,7 +335,7 @@ class _DashHeader extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            fmt.format(penMonth),
+            fmt.format(monthTotal),
             style: const TextStyle(
               fontSize: 44,
               fontWeight: FontWeight.w800,
@@ -160,7 +346,7 @@ class _DashHeader extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '$monthCount ${monthCount == 1 ? 'gasto registrado' : 'gastos registrados'} este mes',
+            '$monthCount ${monthCount == 1 ? 'rendición registrada' : 'rendiciones registradas'} este mes',
             style: const TextStyle(
               fontSize: 13,
               color: Colors.white70,
@@ -192,7 +378,7 @@ class _EmptyDash extends StatelessWidget {
               style: TextStyle(
                   fontSize: 18, fontWeight: FontWeight.w700, color: c.ink)),
           const SizedBox(height: 6),
-          Text('Registra gastos para ver tus estadísticas',
+          Text('Registra rendiciones para ver tus estadísticas',
               style: TextStyle(fontSize: 13, color: c.muted),
               textAlign: TextAlign.center),
         ],
@@ -205,25 +391,18 @@ class _EmptyDash extends StatelessWidget {
 
 class _StatsRow extends StatelessWidget {
   final List<ExpenseModel> expenses;
-  const _StatsRow({required this.expenses});
+  final String currencySymbol;
+  const _StatsRow({required this.expenses, required this.currencySymbol});
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final penExpenses =
-        expenses.where((e) => e.currency == 'PEN').toList();
     final monthExpenses = expenses
         .where((e) => e.date.month == now.month && e.date.year == now.year)
         .toList();
-    final monthTotal =
-        monthExpenses.fold(0.0, (s, e) => e.currency == 'PEN' ? s + e.amount : s);
-    final avg = penExpenses.isEmpty
-        ? 0.0
-        : penExpenses.fold(0.0, (s, e) => s + e.amount) / penExpenses.length;
-    final pending =
-        expenses.where((e) => e.status == 'pending').length;
-
-    final fmt = NumberFormat('#,##0.00', 'es_PE');
+    final monthTotal = monthExpenses.fold(0.0, (s, e) => s + e.amount);
+    final avg = expenses.isEmpty ? 0.0 : expenses.fold(0.0, (s, e) => s + e.amount) / expenses.length;
+    final pending = expenses.where((e) => e.status == 'pending').length;
     final fmtShort = NumberFormat('#,##0', 'es_PE');
 
     return Column(
@@ -235,7 +414,7 @@ class _StatsRow extends StatelessWidget {
           children: [
             Expanded(
               child: _StatCard(
-                label: 'Gastos este mes',
+                label: 'Rendiciones este mes',
                 value: monthExpenses.length.toString(),
                 icon: Icons.receipt_long_rounded,
                 color: AppTheme.primary,
@@ -257,8 +436,8 @@ class _StatsRow extends StatelessWidget {
           children: [
             Expanded(
               child: _StatCard(
-                label: 'Promedio por gasto',
-                value: 'S/ ${fmtShort.format(avg)}',
+                label: 'Promedio por rendición',
+                value: '$currencySymbol ${fmtShort.format(avg)}',
                 icon: Icons.trending_up_rounded,
                 color: AppTheme.mint,
               ),
@@ -267,7 +446,7 @@ class _StatsRow extends StatelessWidget {
             Expanded(
               child: _StatCard(
                 label: 'Total acumulado',
-                value: 'S/ ${fmtShort.format(monthTotal)}',
+                value: '$currencySymbol ${fmtShort.format(monthTotal)}',
                 icon: Icons.account_balance_wallet_rounded,
                 color: AppTheme.violet,
               ),
@@ -353,7 +532,6 @@ class _MonthlyChart extends StatelessWidget {
     final values = months.map((m) {
       return expenses
           .where((e) =>
-              e.currency == 'PEN' &&
               e.date.month == m.month &&
               e.date.year == m.year)
           .fold(0.0, (s, e) => s + e.amount);
@@ -363,7 +541,7 @@ class _MonthlyChart extends StatelessWidget {
         months.map((m) => DateFormat('MMM', 'es').format(m)).toList();
 
     return _SectionCard(
-      title: 'Gasto mensual (S/)',
+      title: 'Rendición mensual (S/)',
       child: SizedBox(
         height: 180,
         child: CustomPaint(
@@ -493,7 +671,8 @@ class _BarChartPainter extends CustomPainter {
 
 class _CategoryBreakdown extends StatelessWidget {
   final List<ExpenseModel> expenses;
-  const _CategoryBreakdown({required this.expenses});
+  final String currencySymbol;
+  const _CategoryBreakdown({required this.expenses, required this.currencySymbol});
 
   static const _catColors = [
     AppTheme.primary,
@@ -506,13 +685,11 @@ class _CategoryBreakdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.appColors;
-    final penExpenses =
-        expenses.where((e) => e.currency == 'PEN').toList();
-    final total = penExpenses.fold(0.0, (s, e) => s + e.amount);
+    final total = expenses.fold(0.0, (s, e) => s + e.amount);
 
     // Group by category
     final catMap = <ExpenseCategory, double>{};
-    for (final e in penExpenses) {
+    for (final e in expenses) {
       catMap[e.category] = (catMap[e.category] ?? 0) + e.amount;
     }
     final sorted = catMap.entries.toList()
@@ -530,7 +707,7 @@ class _CategoryBreakdown extends StatelessWidget {
     final fmt = NumberFormat('#,##0.00', 'es_PE');
 
     return _SectionCard(
-      title: 'Por categoría (S/)',
+      title: 'Por categoría ($currencySymbol)',
       child: Row(
         children: [
           // Donut
@@ -594,7 +771,7 @@ class _CategoryBreakdown extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            'S/ ${fmt.format(s.amount)}',
+                            '$currencySymbol ${fmt.format(s.amount)}',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
@@ -687,25 +864,22 @@ class _DonutPainter extends CustomPainter {
 
 class _TypeBreakdown extends StatelessWidget {
   final List<ExpenseModel> expenses;
-  const _TypeBreakdown({required this.expenses});
+  final String currencySymbol;
+  const _TypeBreakdown({required this.expenses, required this.currencySymbol});
 
   @override
   Widget build(BuildContext context) {
     final c = context.appColors;
-    final viaticos =
-        expenses.where((e) => e.type == 'viatico').toList();
-    final compras =
-        expenses.where((e) => e.type == 'compra').toList();
-    final totalV =
-        viaticos.fold(0.0, (s, e) => e.currency == 'PEN' ? s + e.amount : s);
-    final totalC =
-        compras.fold(0.0, (s, e) => e.currency == 'PEN' ? s + e.amount : s);
+    final viaticos = expenses.where((e) => e.type == 'viatico').toList();
+    final compras = expenses.where((e) => e.type == 'compra').toList();
+    final totalV = viaticos.fold(0.0, (s, e) => s + e.amount);
+    final totalC = compras.fold(0.0, (s, e) => s + e.amount);
     final grand = totalV + totalC;
 
     final fmt = NumberFormat('#,##0.00', 'es_PE');
 
     return _SectionCard(
-      title: 'Tipo de gasto (S/)',
+      title: 'Tipo de rendición ($currencySymbol)',
       child: Column(
         children: [
           Row(
@@ -716,6 +890,7 @@ class _TypeBreakdown extends StatelessWidget {
                 amount: totalV,
                 color: AppTheme.primary,
                 fmt: fmt,
+                currencySymbol: currencySymbol,
               ),
               const SizedBox(width: 12),
               _TypePill(
@@ -724,6 +899,7 @@ class _TypeBreakdown extends StatelessWidget {
                 amount: totalC,
                 color: AppTheme.coral,
                 fmt: fmt,
+                currencySymbol: currencySymbol,
               ),
             ],
           ),
@@ -785,12 +961,14 @@ class _TypePill extends StatelessWidget {
   final double amount;
   final Color color;
   final NumberFormat fmt;
+  final String currencySymbol;
   const _TypePill(
       {required this.label,
       required this.count,
       required this.amount,
       required this.color,
-      required this.fmt});
+      required this.fmt,
+      required this.currencySymbol});
 
   @override
   Widget build(BuildContext context) {
@@ -814,12 +992,12 @@ class _TypePill extends StatelessWidget {
                     letterSpacing: 0.4)),
             const SizedBox(height: 6),
             Text(
-              'S/ ${fmt.format(amount)}',
+              '$currencySymbol ${fmt.format(amount)}',
               style: TextStyle(
                   fontSize: 16, fontWeight: FontWeight.w800, color: c.ink),
             ),
             Text(
-              '$count ${count == 1 ? 'gasto' : 'gastos'}',
+              '$count ${count == 1 ? 'rendición' : 'rendiciones'}',
               style: TextStyle(fontSize: 11, color: c.muted),
             ),
           ],
@@ -833,7 +1011,8 @@ class _TypePill extends StatelessWidget {
 
 class _TopProviders extends StatelessWidget {
   final List<ExpenseModel> expenses;
-  const _TopProviders({required this.expenses});
+  final String currencySymbol;
+  const _TopProviders({required this.expenses, required this.currencySymbol});
 
   @override
   Widget build(BuildContext context) {
@@ -842,9 +1021,7 @@ class _TopProviders extends StatelessWidget {
     // Group by businessName
     final map = <String, double>{};
     for (final e in expenses) {
-      if (e.businessName != null &&
-          e.businessName!.isNotEmpty &&
-          e.currency == 'PEN') {
+      if (e.businessName != null && e.businessName!.isNotEmpty) {
         map[e.businessName!] = (map[e.businessName!] ?? 0) + e.amount;
       }
     }
@@ -892,7 +1069,7 @@ class _TopProviders extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'S/ ${fmt.format(item.value)}',
+                      '$currencySymbol ${fmt.format(item.value)}',
                       style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -919,127 +1096,236 @@ class _TopProviders extends StatelessWidget {
   }
 }
 
-// ── Recent expenses ───────────────────────────────────────────────────────────
+// ── Receipt type breakdown ────────────────────────────────────────────────────
 
-class _RecentExpenses extends StatelessWidget {
+class _ReceiptTypeBreakdown extends StatelessWidget {
   final List<ExpenseModel> expenses;
-  const _RecentExpenses({required this.expenses});
+  final String currencySymbol;
+  const _ReceiptTypeBreakdown({required this.expenses, required this.currencySymbol});
+
+  static const _colors = [
+    AppTheme.primary,
+    AppTheme.mint,
+    AppTheme.coral,
+    AppTheme.violet,
+    AppTheme.sky,
+    AppTheme.warn,
+  ];
+
+  static String _label(String? raw) {
+    if (raw == null || raw.isEmpty) return 'Sin sustento';
+    final v = raw.toLowerCase();
+    if (v.contains('factura')) return 'Factura';
+    if (v.contains('boleta')) return 'Boleta';
+    if (v.contains('ticket')) return 'Ticket';
+    if (v.contains('recibo')) return 'Recibo';
+    if (v.contains('nota')) return 'Nota de venta';
+    return raw[0].toUpperCase() + raw.substring(1);
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = context.appColors;
-    final sorted = List<ExpenseModel>.from(expenses)
-      ..sort((a, b) => b.date.compareTo(a.date));
-    final recent = sorted.take(5).toList();
+    final total = expenses.fold(0.0, (s, e) => s + e.amount);
+
+    final map = <String, _ReceiptStat>{};
+    for (final e in expenses) {
+      final key = _label(e.receiptDetail);
+      final prev = map[key] ?? _ReceiptStat(label: key, amount: 0, count: 0);
+      map[key] = _ReceiptStat(label: key, amount: prev.amount + e.amount, count: prev.count + 1);
+    }
+    if (map.isEmpty) return const SizedBox.shrink();
+
+    final sorted = map.values.toList()..sort((a, b) => b.amount.compareTo(a.amount));
+    final maxVal = sorted.first.amount;
+    final fmt = NumberFormat('#,##0.00', 'es_PE');
+
+    final slices = sorted.asMap().entries.map((entry) => _DonutSlice(
+      color: _colors[entry.key % _colors.length],
+      fraction: total > 0 ? entry.value.amount / total : 0,
+      label: entry.value.label,
+      amount: entry.value.amount,
+    )).toList();
 
     return _SectionCard(
-      title: 'Últimos gastos',
-      trailing: TextButton(
-        onPressed: () => context.go('/home'),
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          foregroundColor: AppTheme.primary,
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        child: const Text('Ver todos',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-      ),
+      title: 'Tipo de sustento ($currencySymbol)',
       child: Column(
-        children: recent.asMap().entries.map((entry) {
-          final i = entry.key;
-          final e = entry.value;
-          final fmt = NumberFormat('#,##0.00', 'es_PE');
-          final symbol = e.currency == 'USD'
-              ? '\$'
-              : e.currency == 'EUR'
-                  ? '€'
-                  : 'S/';
-          return InkWell(
-            onTap: () => context.push('/expense/${e.id}'),
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding:
-                  EdgeInsets.only(bottom: i < recent.length - 1 ? 12 : 0),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: _catColor(e.category).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(_catIcon(e.category),
-                        size: 18, color: _catColor(e.category)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 120,
+                height: 120,
+                child: CustomPaint(
+                  painter: _DonutPainter(slices: slices),
+                  child: Center(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          e.description.isNotEmpty
-                              ? e.description
-                              : e.category.label,
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: c.ink),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          DateFormat('dd MMM yyyy', 'es').format(e.date),
-                          style: TextStyle(fontSize: 11, color: c.muted),
-                        ),
+                        Text(sorted.length.toString(),
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: c.ink)),
+                        Text('tipos', style: TextStyle(fontSize: 10, color: c.muted)),
                       ],
                     ),
                   ),
-                  Text(
-                    '$symbol ${fmt.format(e.amount)}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.primary,
-                    ),
-                  ),
-                ],
+                ),
               ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: sorted.asMap().entries.map((entry) {
+                    final i = entry.key;
+                    final stat = entry.value;
+                    final color = _colors[i % _colors.length];
+                    final pct = maxVal > 0 ? stat.amount / maxVal : 0.0;
+                    return Padding(
+                      padding: EdgeInsets.only(bottom: i < sorted.length - 1 ? 10 : 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(width: 8, height: 8,
+                                  decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(stat.label,
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c.ink),
+                                    overflow: TextOverflow.ellipsis),
+                              ),
+                              Text('${stat.count}',
+                                  style: TextStyle(fontSize: 10, color: c.muted)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: pct,
+                                    minHeight: 5,
+                                    backgroundColor: c.surfaceTinted,
+                                    color: color,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text('$currencySymbol ${fmt.format(stat.amount)}',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReceiptStat {
+  final String label;
+  final double amount;
+  final int count;
+  const _ReceiptStat({required this.label, required this.amount, required this.count});
+}
+
+// ── Cost center breakdown ─────────────────────────────────────────────────────
+
+class _CostCenterBreakdown extends StatelessWidget {
+  final List<ExpenseModel> expenses;
+  final String currencySymbol;
+  const _CostCenterBreakdown({required this.expenses, required this.currencySymbol});
+
+  static const _colors = [
+    AppTheme.violet,
+    AppTheme.sky,
+    AppTheme.mint,
+    AppTheme.coral,
+    AppTheme.primary,
+    AppTheme.warn,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+    final fmt = NumberFormat('#,##0.00', 'es_PE');
+
+    // Build map: costCenterName → weighted amount (amount * percentage / 100)
+    final map = <String, double>{};
+    for (final e in expenses) {
+      for (final alloc in e.costCenterAllocations) {
+        final name = alloc.costCenterName ?? alloc.subCostCenterName ?? 'Sin asignar';
+        if (name.isEmpty) continue;
+        final allocated = e.amount * alloc.percentage / 100;
+        map[name] = (map[name] ?? 0) + allocated;
+      }
+    }
+    if (map.isEmpty) return const SizedBox.shrink();
+
+    final sorted = map.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final top = sorted.take(6).toList();
+    final maxVal = top.first.value;
+
+    return _SectionCard(
+      title: 'Centro de costo ($currencySymbol)',
+      child: Column(
+        children: top.asMap().entries.map((entry) {
+          final i = entry.key;
+          final item = entry.value;
+          final color = _colors[i % _colors.length];
+          final pct = maxVal > 0 ? item.value / maxVal : 0.0;
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: i < top.length - 1 ? 14 : 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 10, height: 10,
+                      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item.key,
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.ink),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$currencySymbol ${fmt.format(item.value)}',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: pct,
+                    minHeight: 7,
+                    backgroundColor: c.surfaceTinted,
+                    color: color,
+                  ),
+                ),
+              ],
             ),
           );
         }).toList(),
       ),
     );
-  }
-
-  Color _catColor(ExpenseCategory cat) {
-    switch (cat) {
-      case ExpenseCategory.alimentacion:
-        return AppTheme.coral;
-      case ExpenseCategory.transporte:
-        return AppTheme.sky;
-      case ExpenseCategory.alojamiento:
-        return AppTheme.violet;
-      case ExpenseCategory.compras:
-        return AppTheme.mint;
-      case ExpenseCategory.otros:
-        return AppTheme.warn;
-    }
-  }
-
-  IconData _catIcon(ExpenseCategory cat) {
-    switch (cat) {
-      case ExpenseCategory.alimentacion:
-        return Icons.restaurant_rounded;
-      case ExpenseCategory.transporte:
-        return Icons.directions_car_rounded;
-      case ExpenseCategory.alojamiento:
-        return Icons.hotel_rounded;
-      case ExpenseCategory.compras:
-        return Icons.shopping_bag_rounded;
-      case ExpenseCategory.otros:
-        return Icons.receipt_rounded;
-    }
   }
 }
 

@@ -165,7 +165,7 @@ class ExpenseCard extends StatelessWidget {
         return await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Eliminar gasto'),
+            title: const Text('Eliminar rendición'),
             content: Text('¿Eliminar "${expense.description}"? Esta acción no se puede deshacer.'),
             actions: [
               TextButton(

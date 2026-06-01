@@ -11,6 +11,7 @@ class ApiConstants {
 
   // Expenses
   static const String expenses = '/expenses';
+  static const String expensesUnassigned = '/expenses/unassigned';
   static const String expenseCapture = '/expenses/capture';
   static const String expenseVoice = '/expenses/voice-to-expense';
 

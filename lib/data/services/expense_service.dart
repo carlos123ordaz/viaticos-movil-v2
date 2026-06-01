@@ -12,7 +12,7 @@ class ExpenseService {
   Future<List<ExpenseModel>> getExpenses({String? taskId}) async {
     final path = taskId != null
         ? '${ApiConstants.expenses}/task/$taskId'
-        : ApiConstants.expenses;
+        : ApiConstants.expensesUnassigned;
     final response = await _api.get(path);
     final List<dynamic> list = response.data is List
         ? response.data as List
@@ -57,6 +57,13 @@ class ExpenseService {
 
   Future<void> deleteExpense(String id) async {
     await _api.delete('${ApiConstants.expenses}/$id');
+  }
+
+  Future<void> assignTaskToExpenses(List<String> expenseIds, String taskId) async {
+    await _api.patch(
+      '${ApiConstants.expenses}/assign-task',
+      data: {'expenseIds': expenseIds, 'taskId': taskId},
+    );
   }
 
   Future<Map<String, dynamic>> captureVoucher(String imagePath, {CancelToken? cancelToken}) async {

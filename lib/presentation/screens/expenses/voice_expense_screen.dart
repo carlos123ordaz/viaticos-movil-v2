@@ -7,7 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/services/expense_service.dart';
 
 const _kTips = [
-  'Menciona el monto total del gasto',
+  'Menciona el monto total de la rendición',
   'Indica la moneda si no es soles (ej: "en dólares")',
   'Describe qué compraste o el servicio',
   'Agrega el RUC si lo tienes',
@@ -149,7 +149,7 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
       if (!mounted) return;
       if (data['isValid'] != true) {
         setState(() {
-          _error = (data['errorMessage'] as String?) ?? 'No se pudo interpretar como gasto válido.';
+          _error = (data['errorMessage'] as String?) ?? 'No se pudo interpretar como rendición válida.';
           _isProcessing = false;
         });
         return;
@@ -250,7 +250,7 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
             backgroundColor: c.surface,
             elevation: 0,
             surfaceTintColor: c.surface,
-            title: Text('Gasto por Voz',
+            title: Text('Rendición por Voz',
                 style: TextStyle(fontWeight: FontWeight.w700, color: c.ink)),
             centerTitle: true,
             leading: IconButton(
@@ -280,7 +280,7 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                     Icon(Icons.mic_rounded, size: 18, color: Color(0xFF4F46E5)),
                     SizedBox(width: 8),
                     Expanded(
-                      child: Text('Dicta tu gasto con el monto, categoría y detalles',
+                      child: Text('Dicta tu rendición con el monto, categoría y detalles',
                           style: TextStyle(fontSize: 13, color: AppTheme.primaryDark, fontWeight: FontWeight.w500)),
                     ),
                   ],
@@ -301,7 +301,7 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Descripción del gasto',
+                        Text('Descripción de la rendición',
                             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.ink2)),
                         if (_textCtrl.text.isNotEmpty)
                           GestureDetector(
@@ -463,7 +463,7 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                           child: Icon(Icons.mic_outlined, color: Color(0xFF4F46E5), size: 28),
                         ),
                         const SizedBox(height: 12),
-                        Text('¿Cómo dictar tu gasto?',
+                        Text('¿Cómo dictar tu rendición?',
                             style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: c.ink)),
                         const SizedBox(height: 4),
                         Text('Sigue estos ejemplos para mejores resultados',
@@ -598,7 +598,7 @@ class _VoiceExpenseScreenState extends State<VoiceExpenseScreen>
                                 child: Icon(Icons.check_rounded, color: Color(0xFF059669), size: 28),
                               ),
                               const SizedBox(height: 12),
-                              Center(child: Text('Gasto reconocido',
+                              Center(child: Text('Rendición reconocida',
                                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: c.ink))),
                               const SizedBox(height: 4),
                               Center(child: Text('Revisa los datos y confirma para continuar',

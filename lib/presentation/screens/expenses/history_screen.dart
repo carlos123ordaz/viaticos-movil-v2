@@ -6,7 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../data/models/bitrix_task_model.dart';
 import '../../../data/models/expense_model.dart';
+import '../../../data/services/bitrix_task_service.dart';
 import '../../../data/services/expense_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/expense_provider.dart';
@@ -200,30 +202,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   void _showAddOptions() {
-    final auth = context.read<AuthProvider>();
-    if (auth.taskId == null) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Tarea requerida'),
-          content: const Text('Debes seleccionar una tarea antes de registrar un gasto.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _openTaskSelection();
-              },
-              child: const Text('Seleccionar tarea'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
     showModalBottomSheet<_CaptureSource>(
       context: context,
       isScrollControlled: true,
@@ -250,7 +228,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Nuevo gasto',
+                    'Nueva rendición',
                     style: TextStyle(
                       fontFamily: 'Plus Jakarta Sans',
                       fontSize: 22,
@@ -361,7 +339,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) => [
           SliverAppBar(
-            expandedHeight: 180,
+            expandedHeight: 200,
             floating: false,
             pinned: true,
             backgroundColor: AppTheme.primary,
@@ -369,7 +347,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             elevation: 0,
             scrolledUnderElevation: 0,
             title: const Text(
-              'Mis Gastos',
+              'Mis Rendiciones',
               style: TextStyle(
                 fontFamily: 'Plus Jakarta Sans',
                 color: Colors.white,
@@ -443,7 +421,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         onChanged: provider.setSearch,
                         style: const TextStyle(fontFamily: 'Plus Jakarta Sans', fontWeight: FontWeight.w600),
                         decoration: InputDecoration(
-                          hintText: 'Buscar gastos...',
+                          hintText: 'Buscar rendiciones...',
                           prefixIcon: Icon(Icons.search_rounded, size: 20, color: context.appColors.muted),
                           suffixIcon: _searchCtrl.text.isNotEmpty
                               ? IconButton(
@@ -474,7 +452,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Esta tarea ya fue finalizada. Ya no puedes agregar más gastos.',
+                                'Esta tarea ya fue finalizada. Ya no puedes agregar más rendiciones.',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -565,15 +543,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     SliverFillRemaining(
                       child: EmptyState(
                         icon: Icons.receipt_long_outlined,
-                        title: provider.search.isNotEmpty ? 'Sin resultados' : 'No hay gastos aún',
+                        title: provider.search.isNotEmpty ? 'Sin resultados' : 'No hay rendiciones aún',
                         subtitle: provider.search.isNotEmpty
                             ? 'Intenta con otro término de búsqueda'
-                            : 'Toca el botón + para agregar tu primer gasto',
+                            : 'Toca el botón + para agregar tu primera rendición',
                         action: provider.search.isEmpty
                             ? ElevatedButton.icon(
                                 onPressed: _showAddOptions,
                                 icon: const Icon(Icons.add_rounded),
-                                label: const Text('Agregar gasto'),
+                                label: const Text('Agregar rendición'),
                                 style: ElevatedButton.styleFrom(
                                   minimumSize: Size.zero,
                                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -581,21 +559,75 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               )
                             : null,
                       ),
-                    )
-                  else
+                    ),
+                  // Selection mode banner
+                  if (provider.isSelectionMode)
+                    SliverToBoxAdapter(
+                      child: Container(
+                        margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.check_circle_outline_rounded, size: 16, color: AppTheme.secondary),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${provider.selectedCount} de ${provider.expenses.length} seleccionados',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.secondary,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => provider.selectAll(provider.expenses.map((e) => e.id).toList()),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                minimumSize: Size.zero,
+                              ),
+                              child: const Text('Todos', style: TextStyle(fontSize: 12, color: AppTheme.secondary)),
+                            ),
+                            TextButton(
+                              onPressed: provider.exitSelectionMode,
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                minimumSize: Size.zero,
+                              ),
+                              child: const Text('Cancelar', style: TextStyle(fontSize: 12, color: AppTheme.secondary)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (!provider.isLoading && provider.expenses.isNotEmpty)
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate(
                           (ctx, i) {
                             final expense = provider.expenses[i];
+                            final isSelected = provider.selectedIds.contains(expense.id);
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 10),
-                              child: ExpenseCard(
-                                expense: expense,
-                                onTap: () => context.push('/expense/${expense.id}'),
-                                onDelete: () => _delete(expense),
-                              ),
+                              child: provider.isSelectionMode
+                                  ? _SelectableExpenseCard(
+                                      expense: expense,
+                                      isSelected: isSelected,
+                                      onTap: () => provider.toggleSelection(expense.id),
+                                    )
+                                  : GestureDetector(
+                                      onLongPress: () => provider.enterSelectionMode(expense.id),
+                                      child: ExpenseCard(
+                                        expense: expense,
+                                        onTap: () => context.push('/expense/${expense.id}'),
+                                        onDelete: () => _delete(expense),
+                                      ),
+                                    ),
                             );
                           },
                           childCount: provider.expenses.length,
@@ -608,14 +640,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
           },
         ),
       ),
-      floatingActionButton: Consumer<AuthProvider>(
-        builder: (context, auth, _) {
-          if (auth.taskId == null || _isReportFinalized) return const SizedBox.shrink();
+      floatingActionButton: Consumer<ExpenseProvider>(
+        builder: (context, provider, _) {
+          if (_isReportFinalized) return const SizedBox.shrink();
+          if (provider.expenses.isEmpty && !provider.isLoading) return const SizedBox.shrink();
+          if (provider.isSelectionMode) {
+            return FloatingActionButton.extended(
+              onPressed: provider.selectedCount > 0
+                  ? () => _showAssignTaskSheet(provider)
+                  : null,
+              backgroundColor: AppTheme.secondary,
+              icon: const Icon(Icons.task_alt_rounded),
+              label: Text(
+                'Asignar tarea · ${provider.selectedCount}',
+                style: const TextStyle(fontFamily: 'Plus Jakarta Sans', fontWeight: FontWeight.w700),
+              ),
+            );
+          }
           return FloatingActionButton.extended(
             onPressed: _showAddOptions,
             icon: const Icon(Icons.add_rounded),
             label: const Text(
-              'Nuevo gasto',
+              'Nueva rendición',
               style: TextStyle(fontFamily: 'Plus Jakarta Sans', fontWeight: FontWeight.w700),
             ),
           );
@@ -635,6 +681,32 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _showAssignTaskSheet(ExpenseProvider provider) async {
+    final count = provider.selectedCount;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useRootNavigator: true,
+      builder: (ctx) => _AssignTaskSheet(
+        selectedCount: count,
+        onAssign: (taskId) async {
+          Navigator.pop(ctx);
+          final ok = await provider.assignTask(taskId);
+          if (!mounted) return;
+          if (ok) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('$count rendición(es) asignada(s) correctamente')),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Error al asignar la tarea')),
+            );
+          }
+        },
+      ),
+    );
   }
 }
 
@@ -688,7 +760,7 @@ class _RichSummaryHeader extends StatelessWidget {
               SafeArea(
                 bottom: false,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 48, 20, 12),
+                  padding: const EdgeInsets.fromLTRB(20, 52, 20, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -717,7 +789,7 @@ class _RichSummaryHeader extends StatelessWidget {
                       Row(
                         children: [
                           Text(
-                            '${provider.expenses.length} gastos',
+                            '${provider.expenses.length} rendiciones',
                             style: TextStyle(
                               fontFamily: 'Plus Jakarta Sans',
                               fontSize: 13,
@@ -1346,7 +1418,7 @@ class _FinalizeDialog extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      'Una vez finalizada, no podrás agregar más gastos a esta tarea.',
+                      'Una vez finalizada, no podrás agregar más rendiciones a esta tarea.',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 13, color: c.muted),
                     ),
@@ -1388,5 +1460,327 @@ class _FinalizeDialog extends StatelessWidget {
     );
   }
 }
+
+// ── Selectable Expense Card ───────────────────────────────────────────────────
+
+class _SelectableExpenseCard extends StatelessWidget {
+  final ExpenseModel expense;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _SelectableExpenseCard({
+    required this.expense,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+    final catColor = getCategoryColor(expense.category);
+    final catBg = getCategoryBg(expense.category);
+    final catIcon = getCategoryIcon(expense.category);
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.secondaryContainer : c.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AppTheme.secondary : Colors.transparent,
+            width: 2,
+          ),
+          boxShadow: isSelected ? [] : AppTheme.cardShadow,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // Checkbox
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: isSelected ? AppTheme.secondary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: isSelected ? AppTheme.secondary : c.muted2,
+                    width: 2,
+                  ),
+                ),
+                child: isSelected
+                    ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              // Category icon
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: catBg,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(catIcon, color: catColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              // Description
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      expense.description,
+                      style: TextStyle(
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: c.ink,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      expense.category.label,
+                      style: TextStyle(
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: catColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                Formatters.currency(expense.amount, currency: expense.currency),
+                style: TextStyle(
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: c.ink,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Assign Task Sheet ─────────────────────────────────────────────────────────
+
+class _AssignTaskSheet extends StatefulWidget {
+  final int selectedCount;
+  final Future<void> Function(String taskId) onAssign;
+
+  const _AssignTaskSheet({required this.selectedCount, required this.onAssign});
+
+  @override
+  State<_AssignTaskSheet> createState() => _AssignTaskSheetState();
+}
+
+class _AssignTaskSheetState extends State<_AssignTaskSheet> {
+  List<BitrixTaskModel> _tasks = [];
+  bool _loading = true;
+  bool _assigning = false;
+  String _search = '';
+  BitrixTaskModel? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    try {
+      final service = context.read<BitrixTaskService>();
+      final tasks = await service.getLastTasks();
+      if (mounted) setState(() { _tasks = tasks; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  List<BitrixTaskModel> get _filtered {
+    if (_search.isEmpty) return _tasks;
+    final q = _search.toLowerCase();
+    return _tasks.where((t) =>
+      t.title.toLowerCase().contains(q) || t.id.contains(q)).toList();
+  }
+
+  Future<void> _confirm() async {
+    if (_selected == null) return;
+    setState(() => _assigning = true);
+    await widget.onAssign(_selected!.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    return Container(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            width: 44,
+            height: 5,
+            decoration: BoxDecoration(color: c.line, borderRadius: BorderRadius.circular(3)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Asignar tarea',
+                        style: TextStyle(
+                          fontFamily: 'Plus Jakarta Sans',
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: c.ink,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                      Text(
+                        '${widget.selectedCount} rendición(es) seleccionada(s)',
+                        style: TextStyle(fontSize: 13, color: c.muted),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(color: c.surfaceTinted, borderRadius: BorderRadius.circular(12)),
+                    child: Icon(Icons.close_rounded, size: 18, color: c.muted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: TextField(
+              onChanged: (v) => setState(() => _search = v),
+              decoration: InputDecoration(
+                hintText: 'Buscar tarea...',
+                prefixIcon: Icon(Icons.search_rounded, size: 20, color: c.muted),
+              ),
+            ),
+          ),
+          Flexible(
+            child: _loading
+                ? const Center(child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(),
+                  ))
+                : ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: _filtered.length,
+                    itemBuilder: (_, i) {
+                      final task = _filtered[i];
+                      final isSelected = _selected?.id == task.id;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selected = task),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppTheme.secondaryContainer : c.surfaceTinted,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isSelected ? AppTheme.secondary : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                                  size: 18,
+                                  color: isSelected ? AppTheme.secondary : c.muted2,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        task.title,
+                                        style: TextStyle(
+                                          fontFamily: 'Plus Jakarta Sans',
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: isSelected ? AppTheme.secondary : c.ink,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        '#${task.id}',
+                                        style: TextStyle(fontSize: 11, color: c.muted),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + bottomPadding),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: (_selected == null || _assigning) ? null : _confirm,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.secondary,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: _assigning
+                    ? const SizedBox(
+                        width: 18, height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text(
+                        _selected == null ? 'Selecciona una tarea' : 'Confirmar asignación',
+                        style: const TextStyle(fontFamily: 'Plus Jakarta Sans', fontWeight: FontWeight.w700),
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 enum _CaptureSource { camera, gallery, pdf }

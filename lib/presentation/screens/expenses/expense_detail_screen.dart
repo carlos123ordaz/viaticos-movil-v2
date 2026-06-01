@@ -37,7 +37,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
       });
     } catch (e) {
       setState(() {
-        _error = 'No se pudo cargar el gasto';
+        _error = 'No se pudo cargar la rendición';
         _loading = false;
       });
     }
@@ -47,9 +47,9 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar gasto'),
+        title: const Text('Eliminar rendición'),
         content: const Text(
-            '¿Estás seguro de que deseas eliminar este gasto? Esta acción no se puede deshacer.'),
+            '¿Estás seguro de que deseas eliminar esta rendición? Esta acción no se puede deshacer.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -68,7 +68,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     if (ok) {
       context.pop();
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Gasto eliminado')));
+          .showSnackBar(const SnackBar(content: Text('Rendición eliminada')));
     }
   }
 
@@ -92,7 +92,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
         backgroundColor: context.appColors.background,
         appBar: AppBar(title: const Text('Detalle')),
         body: Center(
-            child: Text(_error ?? 'Gasto no encontrado',
+            child: Text(_error ?? 'Rendición no encontrada',
                 style: const TextStyle(color: AppTheme.error))),
       );
     }
@@ -785,7 +785,7 @@ class _BottomBar extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16)),
               ),
-              child: const Text('Editar gasto',
+              child: const Text('Editar rendición',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
             ),
           ),
