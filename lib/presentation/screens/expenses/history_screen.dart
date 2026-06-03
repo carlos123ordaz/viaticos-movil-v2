@@ -1,3 +1,4 @@
+import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -89,8 +90,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _captureFromCamera() async {
-    final result = await _picker.pickImage(source: ImageSource.camera, imageQuality: 65, maxWidth: 1200);
-    if (result != null && mounted) await _processOcr(result.path);
+    final pictures = await CunningDocumentScanner.getPictures();
+    if (pictures != null && pictures.isNotEmpty && mounted) {
+      await _processOcr(pictures.first);
+    }
   }
 
   Future<void> _captureFromGallery() async {

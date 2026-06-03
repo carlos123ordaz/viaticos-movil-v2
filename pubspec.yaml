@@ -29,6 +29,8 @@ dependencies:
   # Image & Camera
   image_picker: ^1.1.2
   file_picker: ^8.1.2
+  cunning_document_scanner: ^1.4.0
+  path_provider: ^2.1.0
 
   # Voice
   speech_to_text: ^7.0.0

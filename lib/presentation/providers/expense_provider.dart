@@ -79,7 +79,7 @@ class ExpenseProvider extends ChangeNotifier {
               e.category.label.toLowerCase().contains(q))
           .toList();
     }
-    list.sort((a, b) => b.date.compareTo(a.date));
+    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return list;
   }
 

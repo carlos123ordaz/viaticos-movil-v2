@@ -67,8 +67,10 @@ class ExpenseService {
   }
 
   Future<Map<String, dynamic>> captureVoucher(String imagePath, {CancelToken? cancelToken}) async {
+    final isPdf = imagePath.toLowerCase().endsWith('.pdf');
     final formData = FormData.fromMap({
-      'image': await MultipartFile.fromFile(imagePath),
+      if (isPdf) 'file': await MultipartFile.fromFile(imagePath)
+      else 'image': await MultipartFile.fromFile(imagePath),
     });
     final response = await _api.postFormData(
       ApiConstants.expenseCapture,

@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:cunning_document_scanner/cunning_document_scanner.dart';
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -21,6 +23,7 @@ class _CaptureScreenState extends State<CaptureScreen>
 
   String? _filePath;
   bool _isPdf = false;
+  int _scannedPages = 0;
   bool _isProcessing = false;
   String? _error;
   Map<String, dynamic>? _extractedData;
@@ -53,17 +56,22 @@ class _CaptureScreenState extends State<CaptureScreen>
     super.dispose();
   }
 
-  Future<void> _pickCamera() async {
-    final result =
-        await _picker.pickImage(source: ImageSource.camera, imageQuality: 85, maxWidth: 1600);
-    if (result != null) {
-      setState(() {
-        _filePath = result.path;
-        _isPdf = false;
-        _error = null;
-        _extractedData = null;
-        _showResult = false;
-      });
+  Future<void> _scanDocument() async {
+    try {
+      final pictures = await CunningDocumentScanner.getPictures();
+      if (pictures != null && pictures.isNotEmpty && mounted) {
+        setState(() {
+          _filePath = pictures.first;
+          _scannedPages = pictures.length;
+          _isPdf = false;
+          _error = null;
+          _extractedData = null;
+          _showResult = false;
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'No se pudo abrir el escáner. Verifica los permisos de cámara.');
     }
   }
 
@@ -73,6 +81,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     if (result != null) {
       setState(() {
         _filePath = result.path;
+        _scannedPages = 0;
         _isPdf = false;
         _error = null;
         _extractedData = null;
@@ -87,6 +96,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     if (result != null && result.files.single.path != null) {
       setState(() {
         _filePath = result.files.single.path!;
+        _scannedPages = 0;
         _isPdf = true;
         _error = null;
         _extractedData = null;
@@ -122,11 +132,21 @@ class _CaptureScreenState extends State<CaptureScreen>
         _showResult = true;
         _isProcessing = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+      String msg = 'Error al procesar el archivo. Verifica tu conexión e intenta de nuevo.';
+      if (e is DioException) {
+        if (e.type == DioExceptionType.receiveTimeout || e.type == DioExceptionType.sendTimeout) {
+          msg = 'El servidor tardó demasiado en responder. Intenta con una imagen más pequeña o en otro momento.';
+        } else {
+          final data = e.response?.data;
+          if (data is Map) {
+            msg = data['message']?.toString() ?? data['error']?.toString() ?? msg;
+          }
+        }
+      }
       setState(() {
-        _error =
-            'Error al procesar el archivo. Verifica tu conexión e intenta de nuevo.';
+        _error = msg;
         _isProcessing = false;
       });
     }
@@ -190,10 +210,10 @@ class _CaptureScreenState extends State<CaptureScreen>
                       children: [
                         Expanded(
                             child: _SourceButton(
-                          icon: Icons.camera_alt_rounded,
-                          label: 'Cámara',
+                          icon: Icons.document_scanner_rounded,
+                          label: 'Escanear',
                           color: AppTheme.primary,
-                          onTap: _pickCamera,
+                          onTap: _scanDocument,
                         )),
                         const SizedBox(width: 10),
                         Expanded(
@@ -227,31 +247,61 @@ class _CaptureScreenState extends State<CaptureScreen>
                   ),
                   child: Column(
                     children: [
-                      ClipRRect(
-                        borderRadius:
-                            const BorderRadius.vertical(top: Radius.circular(20)),
-                        child: _isPdf
-                            ? Container(
-                                height: 200,
-                                color: c.surfaceTinted,
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                      Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius:
+                                const BorderRadius.vertical(top: Radius.circular(20)),
+                            child: _isPdf
+                                ? Container(
+                                    height: 200,
+                                    color: c.surfaceTinted,
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        const Icon(Icons.picture_as_pdf_rounded,
+                                            size: 64, color: AppTheme.coral),
+                                        const SizedBox(height: 12),
+                                        Text('Archivo PDF seleccionado',
+                                            style: TextStyle(
+                                                fontSize: 14,
+                                                color: c.muted,
+                                                fontWeight: FontWeight.w500)),
+                                      ],
+                                    ),
+                                  )
+                                : Image.file(File(_filePath!),
+                                    height: 280,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover),
+                          ),
+                          if (_scannedPages > 1)
+                            Positioned(
+                              top: 12,
+                              right: 12,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.ink.withOpacity(0.75),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.picture_as_pdf_rounded,
-                                        size: 64, color: AppTheme.coral),
-                                    const SizedBox(height: 12),
-                                    Text('Archivo PDF seleccionado',
-                                        style: TextStyle(
-                                            fontSize: 14,
-                                            color: c.muted,
-                                            fontWeight: FontWeight.w500)),
+                                    const Icon(Icons.layers_rounded,
+                                        size: 13, color: Colors.white),
+                                    const SizedBox(width: 4),
+                                    Text('$_scannedPages páginas · OCR usa la 1ª',
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white)),
                                   ],
                                 ),
-                              )
-                            : Image.file(File(_filePath!),
-                                height: 280,
-                                width: double.infinity,
-                                fit: BoxFit.cover),
+                              ),
+                            ),
+                        ],
                       ),
                       Padding(
                         padding: const EdgeInsets.all(12),
@@ -260,13 +310,17 @@ class _CaptureScreenState extends State<CaptureScreen>
                             Icon(
                                 _isPdf
                                     ? Icons.picture_as_pdf_rounded
-                                    : Icons.image_rounded,
+                                    : _scannedPages > 0
+                                        ? Icons.document_scanner_rounded
+                                        : Icons.image_rounded,
                                 size: 16,
                                 color: c.muted),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                _filePath!.split('/').last,
+                                _scannedPages > 0
+                                    ? 'Documento escaneado'
+                                    : _filePath!.split('/').last,
                                 style: TextStyle(
                                     fontSize: 13, color: c.muted),
                                 overflow: TextOverflow.ellipsis,
@@ -275,6 +329,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                             GestureDetector(
                               onTap: () => setState(() {
                                 _filePath = null;
+                                _scannedPages = 0;
                                 _extractedData = null;
                                 _error = null;
                               }),

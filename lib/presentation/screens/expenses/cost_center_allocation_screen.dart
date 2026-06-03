@@ -25,6 +25,7 @@ class _CostCenterAllocationScreenState
   List<_AllocationRow> _rows = [];
   List<CostCenterModel> _costCenters = [];
   bool _loading = true;
+  final _scrollCtrl = ScrollController();
 
   @override
   void initState() {
@@ -58,14 +59,16 @@ class _CostCenterAllocationScreenState
                 row.selectedSCC = subs
                     .where((sub) => sub.subCostCenterId == a.subCostCenterId)
                     .firstOrNull;
-                if (a.subSubCostCenterId != null && row.selectedSCC != null) {
+                if (row.selectedSCC != null) {
                   try {
                     final subsubs = await service.getSubSubCostCenters(
                         subCostCenterId: row.selectedSCC!.subCostCenterId);
                     row.subSubCenters = subsubs;
-                    row.selectedSSCC = subsubs
-                        .where((ss) => ss.subSubCostCenterId == a.subSubCostCenterId)
-                        .firstOrNull;
+                    if (a.subSubCostCenterId != null) {
+                      row.selectedSSCC = subsubs
+                          .where((ss) => ss.subSubCostCenterId == a.subSubCostCenterId)
+                          .firstOrNull;
+                    }
                   } catch (_) {}
                 }
               } catch (_) {}
@@ -97,15 +100,17 @@ class _CostCenterAllocationScreenState
                   row.subCenters = subs;
                   row.selectedSCC =
                       subs.where((sub) => sub.subCostCenterId == sccId).firstOrNull;
-                  final ssccId = (s['subSubCostCenterId'] as num?)?.toInt();
-                  if (ssccId != null && row.selectedSCC != null) {
+                  if (row.selectedSCC != null) {
                     try {
                       final subsubs = await service.getSubSubCostCenters(
                           subCostCenterId: row.selectedSCC!.subCostCenterId);
                       row.subSubCenters = subsubs;
-                      row.selectedSSCC = subsubs
-                          .where((ss) => ss.subSubCostCenterId == ssccId)
-                          .firstOrNull;
+                      final ssccId = (s['subSubCostCenterId'] as num?)?.toInt();
+                      if (ssccId != null) {
+                        row.selectedSSCC = subsubs
+                            .where((ss) => ss.subSubCostCenterId == ssccId)
+                            .firstOrNull;
+                      }
                     } catch (_) {}
                   }
                 } catch (_) {}
@@ -131,6 +136,13 @@ class _CostCenterAllocationScreenState
                   row.selectedSCC = subs
                       .where((s) => s.subCostCenterId == userSCCId)
                       .firstOrNull;
+                  if (row.selectedSCC != null) {
+                    try {
+                      final subsubs = await service.getSubSubCostCenters(
+                          subCostCenterId: row.selectedSCC!.subCostCenterId);
+                      row.subSubCenters = subsubs;
+                    } catch (_) {}
+                  }
                 } catch (_) {}
               }
             }
@@ -145,10 +157,34 @@ class _CostCenterAllocationScreenState
         _loading = false;
         _rows = rows;
       });
+      // Scroll to the first incomplete row after loading
+      final incompleteIndex = rows.indexWhere(
+        (r) => r.selectedSCC != null && r.selectedSSCC == null && r.subSubCenters.isNotEmpty,
+      );
+      if (incompleteIndex >= 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final offset = incompleteIndex * 220.0;
+          _scrollCtrl.animateTo(
+            offset.clamp(0.0, _scrollCtrl.position.maxScrollExtent),
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOut,
+          );
+        });
+      }
     } catch (_) {
       setState(() => _loading = false);
     }
   }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  bool get _hasIncompleteRows => _rows.any(
+        (r) => r.selectedSCC != null && r.selectedSSCC == null && r.subSubCenters.isNotEmpty,
+      );
 
   double get _totalPercent =>
       _rows.fold(0, (s, r) => s + (double.tryParse(r.percentCtrl.text) ?? 0));
@@ -221,8 +257,31 @@ class _CostCenterAllocationScreenState
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                if (_hasIncompleteRows)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    color: AppTheme.coral.withOpacity(0.1),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline_rounded,
+                            size: 16, color: AppTheme.coral),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Selecciona el sub sub centro de costo para completar la asignación.',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.coral,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 Expanded(
                   child: ListView.builder(
+                    controller: _scrollCtrl,
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                     itemCount: _rows.length,
                     itemBuilder: (_, i) => _RowCard(
@@ -425,9 +484,28 @@ class _RowCardState extends State<_RowCard> {
             ],
 
             // Sub sub centro
-            if (row.selectedSCC != null && row.subSubCenters.isNotEmpty) ...[
+            if (row.selectedSCC != null && !_loadingSSCC && row.subSubCenters.isNotEmpty) ...[
               const SizedBox(height: 12),
-              const _FieldLabel('Sub sub centro'),
+              Row(
+                children: [
+                  const _FieldLabel('Sub sub centro'),
+                  if (row.selectedSSCC == null) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppTheme.coral.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text('Pendiente',
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.coral)),
+                    ),
+                  ],
+                ],
+              ),
               const SizedBox(height: 6),
               _loadingSSCC
                   ? const _LoadingIndicator()
@@ -435,6 +513,7 @@ class _RowCardState extends State<_RowCard> {
                       value: row.selectedSSCC,
                       items: row.subSubCenters,
                       itemLabel: (e) => e.displayName,
+                      highlight: row.selectedSSCC == null,
                       onChanged: (v) {
                         setState(() => row.selectedSSCC = v);
                         widget.onChanged();
@@ -549,12 +628,14 @@ class _Dropdown<T> extends StatelessWidget {
   final List<T> items;
   final String Function(T) itemLabel;
   final void Function(T?) onChanged;
+  final bool highlight;
 
   const _Dropdown({
     required this.value,
     required this.items,
     required this.itemLabel,
     required this.onChanged,
+    this.highlight = false,
   });
 
   @override
@@ -563,7 +644,21 @@ class _Dropdown<T> extends StatelessWidget {
     return DropdownButtonFormField<T>(
       value: value,
       isExpanded: true,
-      decoration: const InputDecoration(isDense: true),
+      decoration: InputDecoration(
+        isDense: true,
+        enabledBorder: highlight
+            ? OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppTheme.coral, width: 1.5),
+              )
+            : null,
+        focusedBorder: highlight
+            ? OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppTheme.coral, width: 2),
+              )
+            : null,
+      ),
       items: [
         DropdownMenuItem<T>(
           value: null,

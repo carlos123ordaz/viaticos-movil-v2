@@ -84,14 +84,14 @@ class ApiService {
     return _dio.delete(path);
   }
 
-  Future<Response> postFormData(String path, FormData data, {CancelToken? cancelToken}) {
+  Future<Response> postFormData(String path, FormData data, {CancelToken? cancelToken, Duration? receiveTimeout}) {
     return _dio.post(path,
         data: data,
         cancelToken: cancelToken,
         options: Options(
           contentType: 'multipart/form-data',
           sendTimeout: const Duration(seconds: 90),
-          receiveTimeout: const Duration(seconds: 90),
+          receiveTimeout: receiveTimeout ?? const Duration(seconds: 120),
         ));
   }
 

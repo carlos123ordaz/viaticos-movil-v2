@@ -233,6 +233,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     if (result != null) setState(() => _imagePath = result.path);
   }
 
+  bool get _allocationsIncomplete =>
+      _allocations.isNotEmpty &&
+      _allocations.any((a) => a.subCostCenterId != null && a.subSubCostCenterId == null);
+
   Future<void> _openAllocationScreen() async {
     final result = await Navigator.of(context).push<List<CostCenterAllocation>>(
       MaterialPageRoute(
@@ -255,6 +259,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         }
         return true;
       case 3:
+        if (_receiptType == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Selecciona un tipo de sustento')),
+          );
+          return false;
+        }
         if (_selectedCategory == null) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Selecciona una categoría')),
@@ -716,7 +726,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('TOTAL',
+              const Text('TOTAL *',
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -880,7 +890,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _FieldLabel('Tipo de sustento'),
+        const _FieldLabel('Tipo de sustento *'),
         const SizedBox(height: 8),
         _loadingData
             ? const Center(child: CircularProgressIndicator())
@@ -895,6 +905,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         child: Text(r.name, overflow: TextOverflow.ellipsis)))
                     .toList(),
                 onChanged: (v) => setState(() => _receiptType = v),
+                validator: (v) => v == null ? 'Selecciona un tipo de sustento' : null,
               ),
         const SizedBox(height: 18),
         const _FieldLabel('Número de comprobante'),
@@ -989,7 +1000,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _FieldLabel('Descripción'),
+        const _FieldLabel('Descripción *'),
         const SizedBox(height: 8),
         TextFormField(
           controller: _descripCtrl,
@@ -1075,16 +1086,21 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         const SizedBox(height: 20),
         Row(
           children: [
-            const _FieldLabel('Centros de costo'),
+            const _FieldLabel('Centros de costo *'),
             const Spacer(),
             if (_allocations.isNotEmpty)
               TextButton.icon(
                 onPressed: _openAllocationScreen,
-                icon: const Icon(Icons.edit_rounded, size: 14),
-                label: const Text('Editar',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                icon: Icon(
+                  _allocationsIncomplete ? Icons.warning_rounded : Icons.edit_rounded,
+                  size: 14,
+                ),
+                label: Text(
+                  _allocationsIncomplete ? 'Completar' : 'Editar',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
                 style: TextButton.styleFrom(
-                    foregroundColor: AppTheme.primary,
+                    foregroundColor: _allocationsIncomplete ? AppTheme.coral : AppTheme.primary,
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
               ),
           ],
@@ -1142,57 +1158,105 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               color: c.surface,
               borderRadius: BorderRadius.circular(16),
               boxShadow: AppTheme.cardShadow,
+              border: _allocationsIncomplete
+                  ? Border.all(color: AppTheme.coral.withOpacity(0.6), width: 1.5)
+                  : null,
             ),
             child: Column(
-              children: _allocations.asMap().entries.map((entry) {
-                const barColors = [
-                  AppTheme.primary, AppTheme.mint, AppTheme.coral,
-                  AppTheme.violet, AppTheme.sky,
-                ];
-                final color = barColors[entry.key % barColors.length];
-                final alloc = entry.value;
-                return Padding(
-                  padding: EdgeInsets.only(
-                      bottom: entry.key < _allocations.length - 1 ? 14 : 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(alloc.costCenterName ?? '—',
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ..._allocations.asMap().entries.map((entry) {
+                  const barColors = [
+                    AppTheme.primary, AppTheme.mint, AppTheme.coral,
+                    AppTheme.violet, AppTheme.sky,
+                  ];
+                  final color = barColors[entry.key % barColors.length];
+                  final alloc = entry.value;
+                  final missingSSCC = alloc.subCostCenterId != null && alloc.subSubCostCenterId == null;
+                  return Padding(
+                    padding: EdgeInsets.only(
+                        bottom: entry.key < _allocations.length - 1 ? 14 : 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(alloc.costCenterName ?? '—',
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: c.ink)),
+                            ),
+                            Text('${alloc.percentage.toStringAsFixed(0)}%',
                                 style: TextStyle(
                                     fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: c.ink)),
-                          ),
-                          Text('${alloc.percentage.toStringAsFixed(0)}%',
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: color)),
-                        ],
-                      ),
-                      if (alloc.subCostCenterName != null) ...[
-                        const SizedBox(height: 2),
-                        Text(alloc.subCostCenterName!,
-                            style: TextStyle(
-                                fontSize: 11, color: c.muted)),
-                      ],
-                      const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
-                        child: LinearProgressIndicator(
-                          value: alloc.percentage / 100,
-                          minHeight: 5,
-                          backgroundColor: c.surfaceTinted,
-                          color: color,
+                                    fontWeight: FontWeight.w700,
+                                    color: color)),
+                          ],
                         ),
-                      ),
-                    ],
+                        if (alloc.subCostCenterName != null) ...[
+                          const SizedBox(height: 2),
+                          Text(alloc.subCostCenterName!,
+                              style: TextStyle(fontSize: 11, color: c.muted)),
+                        ],
+                        if (alloc.subSubCostCenterName != null) ...[
+                          const SizedBox(height: 1),
+                          Text(alloc.subSubCostCenterName!,
+                              style: TextStyle(fontSize: 11, color: c.muted)),
+                        ],
+                        if (missingSSCC) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(Icons.warning_amber_rounded,
+                                  size: 12, color: AppTheme.coral),
+                              const SizedBox(width: 4),
+                              Text('Falta sub sub centro de costo',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppTheme.coral,
+                                      fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: LinearProgressIndicator(
+                            value: alloc.percentage / 100,
+                            minHeight: 5,
+                            backgroundColor: c.surfaceTinted,
+                            color: color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                if (_allocationsIncomplete) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppTheme.coral.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.touch_app_rounded,
+                            size: 13, color: AppTheme.coral),
+                        const SizedBox(width: 6),
+                        Text('Toca para completar la asignación',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: AppTheme.coral,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
                   ),
-                );
-              }).toList(),
+                ],
+              ],
             ),
           ),
           ),
